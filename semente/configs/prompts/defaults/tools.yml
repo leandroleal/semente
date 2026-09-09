@@ -1,0 +1,106 @@
+# =============================================================================
+# Tool descriptions — NEUTRAL ENGLISH DEFAULT (reference base).
+#
+# Grouped by component (tool file), then by tool function name. Each entry has
+# a `description` tag passed to the agno `@tool(description=...)` decorator.
+#
+# A Semente app overrides these via its own prompts/tools.yml (domain tools +
+# localized language). The framework ships only neutral, domain-free tools here.
+# =============================================================================
+
+tts_tools:
+  generate_speech:
+    description: |
+      Generates spoken audio (text-to-speech) from a provided text.
+
+      Use ONLY when the user explicitly requests an audio/voice response, or when
+      the session or system preference requires audio responses.
+
+      params:
+          text (str): The full text content to be spoken.
+
+      Return:
+          ToolResult: Result object containing the generated speech.
+
+onboarding_tools:
+  accept_terms_and_conditions:
+    description: |
+      Records the user's formal acceptance of the Terms and Conditions in the database.
+
+      Use when the user clearly accepts the terms (e.g. "I accept", "yes", "I agree").
+
+feedback_tools:
+  record_frustration_feedback:
+    description: |
+      Records a user correction when the assistant provided an incorrect answer.
+      Use strictly when: the user asks, the assistant answers, the user complains,
+      the assistant asks how the correct answer should be, and the user provides it.
+
+      params:
+          reason_frustration (str): Why the user was frustrated.
+          desired_answer (str): The answer the user expected.
+
+  record_analisys_feedback:
+    description: |
+      Records a suggestion for a new feature or data analysis.
+      Use when the user requests an analysis the assistant has no tools to generate.
+
+      params:
+          original_question (str): The user's original request.
+          desired_analysis (str): The analysis the user would like to see.
+
+persona_tools:
+  update_persona_name:
+    description: |
+      Updates the user's name in the session persona. Use only when the user
+      informs or confirms their name naturally during the conversation.
+
+      params:
+          name (str): The user's name.
+
+  update_persona_role:
+    description: |
+      Updates the user's professional role in the session persona. Use when you
+      clearly identify the user's role.
+
+      params:
+          role (str): The identified professional role.
+
+  update_persona_region:
+    description: |
+      Updates the user's region/location in the session persona. Use when the user
+      mentions the city, state or region where they operate.
+
+      params:
+          regionality (str): City, state or region.
+
+  create_persona_preference:
+    description: |
+      Adds a new preference or behavior discovered about the user. Avoid duplicating
+      existing keys; use update_persona_preference if the key already exists.
+
+      params:
+          key (str): Short lowercase keyword identifying the category.
+          description (str): Details about the preference.
+
+  update_persona_preference:
+    description: |
+      Updates an existing preference. Use when the user changes their mind or adds
+      new information about a previously mapped point.
+
+      params:
+          key (str): The exact keyword of the preference to update.
+          description (str): The new description replacing the previous one.
+
+  remove_persona_preference:
+    description: |
+      Removes a specific preference from the user's profile when it is no longer valid.
+
+      params:
+          key (str): The keyword of the preference to remove.
+
+version_tools:
+  consult_update_notes:
+    description: |
+      Reads and returns the release notes (patch notes) of the system.
+      Use when the user asks about the current version, news or updates.

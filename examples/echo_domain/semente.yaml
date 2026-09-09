@@ -1,0 +1,11 @@
+name: echo-domain
+language: en
+domain_module: domain
+channels: [streamlit]
+features:
+  tts: false
+  feedback_workflow: false
+  summarization: false
+  pii_guardrail: true
+models:
+  primary: { provider: google, id: gemini-3.5-flash-lite }

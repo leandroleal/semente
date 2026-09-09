@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+logs/
+tmp/
+.cache.sqlite
+users_db.json
+phone_numbers.in
+node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+package-lock.json
