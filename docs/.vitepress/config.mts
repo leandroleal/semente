@@ -1,10 +1,14 @@
 import { defineConfig } from 'vitepress'
 
+// Project pages live under /semente/ — assets 404 without this base.
+// cleanUrls: false (default) because GitHub Pages has no fallback rewrite.
+const base = '/semente/'
+
 export default defineConfig({
   title: 'Semente',
   description: 'Multi-agent AI chat framework for land use and agriculture',
   lang: 'en-US',
-  cleanUrls: true,
+  base,
   themeConfig: {
     logo: '🌱',
     nav: [
@@ -40,7 +44,7 @@ export default defineConfig({
         },
       ],
     },
-    socialLinks: [{ icon: 'github', link: 'https://github.com/semente-ai/semente' }],
+    socialLinks: [{ icon: 'github', link: 'https://github.com/leandroleal/semente' }],
     footer: {
       message: 'Extracted from Pasto Legal (LAPIG/UFG)',
       copyright: 'GPL-3.0-or-later',

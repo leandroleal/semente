@@ -6,7 +6,7 @@ hero:
   text: Multi-agent AI chat for land use
   tagline: Grow a domain-specific AI assistant from a single seed — tools, knowledge, and prompts.
   image:
-    src: /logo.svg
+    src: /semente/logo.svg
     alt: Semente
   actions:
     - theme: brand
