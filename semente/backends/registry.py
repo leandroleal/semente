@@ -19,4 +19,9 @@ def get_backend(engine: str | None = None) -> EngineBackend:
 
         return AgnoBackend()
 
-    raise ValueError(f"Unknown engine: {name!r} (available: agno)")
+    if name == "adk":
+        from semente.backends.adk import AdkBackend
+
+        return AdkBackend()
+
+    raise ValueError(f"Unknown engine: {name!r} (available: agno, adk)")
