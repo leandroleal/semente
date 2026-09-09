@@ -8,6 +8,10 @@ swappable implementation detail.
 **Companion docs:** `ENGINE_ABSTRACTION.md` (Level 1, ✅ done — this is its
 Phase C, generalized from "hide Agno" to "swap Agno").
 
+> **Status:** Phases F–J ✅ implemented — Agno, ADK, and pi backends all
+> registered behind the port; the Semente orchestrator is engine-free. Phase K
+> (CI matrix + golden tests) is the remaining hardening.
+
 ---
 
 ## 1. Two discoveries that make this tractable

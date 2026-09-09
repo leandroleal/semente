@@ -23,6 +23,7 @@ export default defineConfig({
             { text: 'Manifest Reference', link: '/guide/manifest' },
             { text: 'Prompts & i18n', link: '/guide/prompts' },
             { text: 'Channels', link: '/guide/channels' },
+            { text: 'Engines', link: '/guide/engines' },
           ],
         },
       ],

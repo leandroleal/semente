@@ -8,7 +8,7 @@ The public API below is the stable surface domains import from. Domains never
 import the underlying agent engine (Agno) directly — see ENGINE_ABSTRACTION.md.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 from semente.context import Context
 from semente.domain import DomainSpec
