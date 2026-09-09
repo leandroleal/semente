@@ -126,6 +126,7 @@ name: my-app                 # app name (workflow name)
 language: pt-BR              # optional; loads prompts/<lang>/ if present
 domain_module: domain        # import path exposing `domain_spec`
 prompts_dir: domain/prompts  # optional; explicit prompts dir
+engine: agno                 # agno (default) | adk | bare | pi
 channels: [streamlit]        # streamlit and/or whatsapp
 features:                    # all default to true
   tts: true                  # TTS tool on the welcoming agent
@@ -139,6 +140,8 @@ models:                      # optional override of env-var model config
 
 Model config defaults to `.env` vars (`PRIMARY_MODEL_PROVIDER`,
 `PRIMARY_MODEL_ID`, `FALLBACK_*`); the manifest `models` block overrides them.
+The `engine` field (or `SEMENTE_ENGINE` env var) swaps the agent engine — see
+[Engines](docs/guide/engines.md).
 
 ## Documentation
 
@@ -149,6 +152,7 @@ Model config defaults to `.env` vars (`PRIMARY_MODEL_PROVIDER`,
 | [Manifest Reference](docs/guide/manifest.md) | Every `semente.yaml` option |
 | [Prompts & i18n](docs/guide/prompts.md) | YAML prompts + localization |
 | [Channels](docs/guide/channels.md) | WhatsApp + Streamlit |
+| [Engines](docs/guide/engines.md) | agno / adk / bare / pi backends |
 | [Deploy the Toy App](docs/deployment/toy-app.md) | Full deployment walkthrough |
 | [Pasto Legal](docs/showcase/pasto-legal.md) | The first seed, as a showcase |
 

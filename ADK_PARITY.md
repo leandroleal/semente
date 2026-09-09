@@ -5,11 +5,11 @@ every domain tool works — media-returning tools (maps, PDF boletim, video),
 knowledge-base Q&A, skills, tool hooks (registration gating, media
 debouncing), and model fallback.
 
-**Current state (verified, commit `ff57fed`):** dynamic tools resolve per
-registration state (27 default / 3 pending), tool state syncs back to the
-Semente store, toolkits expand, multimodal input works, structured output
-parses. **Missing:** media OUT, knowledge, skills, tool_hooks, fallback —
-see §2.
+**Current state (verified):** dynamic tools resolve per registration state
+(27 default / 3 pending), tool state syncs back to the Semente store,
+toolkits expand, multimodal input works, structured output parses. **Done:**
+media OUT (A-M), knowledge (A-K), tool hooks (A-H). **Missing:** skills,
+fallback — see §2.
 
 ---
 
@@ -107,21 +107,21 @@ it does on Agno. Cosmetic — deferable.
 ## 3. Phases
 
 ### Phase A-M — MediaBag on ADK (1 day) ★ unblocks all 6 media tools
-- [ ] Per-run media bag in `AdkAgentAdapter` (closure capture, attach to `AgentTurn`)
-- [ ] Unit test: a media tool's ToolResult → bag → `StepOutput.images` via `step_factory`
+- [x] Per-run media bag in `AdkAgentAdapter` (closure capture, attach to `AgentTurn`)
+- [x] Unit test: a media tool's ToolResult → bag → `StepOutput.images` via `step_factory`
 - [ ] Integration (real key): `generate_property_image` on Streamlit/ADK shows the map
 - **Exit:** biomass image + boletim PDF render on ADK.
 
 ### Phase A-K — Knowledge tool (1.5 days)
-- [ ] Spike: agno KB retrieval entry point
-- [ ] `semente.knowledge.build_search_tool(kb)` + instruction block mirroring Agno's
-- [ ] ADK backend injects when `spec.knowledge` is set
+- [x] Spike: agno KB retrieval entry point
+- [x] `semente.knowledge.build_search_tool(kb)` + instruction block mirroring Agno's
+- [x] ADK backend injects when `spec.knowledge` is set
 - **Exit:** a platform question ("como funciona o cadastro?") on ADK answers from the EMBRAPA KB, not general knowledge.
 
 ### Phase A-H — Tool hooks bridge (1.5 days)
-- [ ] Extract `tool_hooks` from agno `Function` at adapt time
-- [ ] Hook protocol replication in the wrapper (+ `function_call` stand-in)
-- [ ] Tests: analysis tool blocked without a registered property (both engines behave identically); media dedup marks `delivered_media`
+- [x] Extract `tool_hooks` from agno `Function` at adapt time
+- [x] Hook protocol replication in the wrapper (+ `function_call` stand-in)
+- [x] Tests: analysis tool blocked without a registered property (both engines behave identically); media dedup marks `delivered_media`
 - **Exit:** asking for biomass **before** registering a property returns the polite gating message on ADK, same as Agno.
 
 ### Phase A-S — Skills injection (0.5 day)
