@@ -15,8 +15,7 @@ Key adaptations (see MULTI_ENGINE.md §4.2):
   agno toolkits (e.g. Calculator) are expanded.
 - **Multimodal input**: Semente media -> ``genai`` content parts.
 
-Known degradations (documented): knowledge/skills are not wired, engine
-tool_hooks are not applied.
+Known degradations (documented): knowledge/skills are not wired.
 """
 
 from __future__ import annotations
@@ -98,32 +97,74 @@ class _StateContext:
         self.session_state = session_state
 
 
+def _bind_args(sig, args, kwargs) -> dict:
+    bound = sig.bind(*args, **kwargs)
+    bound.apply_defaults()
+    return dict(bound.arguments)
+
+
+def _build_hook_chain(func, hooks, has_run_context):
+    """Replicate agno's nested tool_hooks chain (middleware semantics).
+
+    Innermost calls the raw function; each hook wraps the next and may either
+    call ``function_call(**arguments)`` to continue the chain or return a value
+    to short-circuit. Mirrors agno.tools.function._build_nested_execution_chain.
+    """
+
+    def entrypoint(args, ctx):
+        if has_run_context:
+            return func(**args, run_context=ctx)
+        return func(**args)
+
+    chain = entrypoint
+    for hook in reversed(hooks):
+
+        def make_wrapper(inner, hook):
+            def wrapper(args, ctx):
+                def next_func(**kwargs):
+                    return inner(kwargs, ctx)
+
+                # The rate-limit hook keys its cache on function_call.__name__.
+                next_func.__name__ = getattr(func, "__name__", "tool")
+                return hook(run_context=ctx, function_call=next_func, arguments=args)
+
+            return wrapper
+
+        chain = make_wrapper(chain, hook)
+    return chain
+
+
 def _adapt_tool(tool, media_bag: dict):
     func = _unwrap(tool)
     sig = inspect.signature(func)
     has_run_context = "run_context" in sig.parameters
+    hooks = getattr(tool, "tool_hooks", None) or []
 
     # Schema the LLM sees: the original signature minus run_context.
-    if has_run_context:
-        sig = sig.replace(
-            parameters=[p for p in sig.parameters.values() if p.name != "run_context"]
-        )
+    clean_sig = sig.replace(
+        parameters=[p for p in sig.parameters.values() if p.name != "run_context"]
+    )
 
-    if not has_run_context:
+    chain = _build_hook_chain(func, hooks, has_run_context)
+    needs_ctx = has_run_context or bool(hooks)
+
+    if not needs_ctx:
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            return _result_to_str(func(*args, **kwargs), media_bag)
+            call_args = _bind_args(clean_sig, args, kwargs)
+            return _result_to_str(chain(call_args, None), media_bag)
 
     else:
 
         @functools.wraps(func)
         def wrapper(*args, tool_context=None, **kwargs):
             ctx = _ToolContextAdapter(tool_context) if tool_context is not None else _StateContext({})
-            return _result_to_str(func(*args, run_context=ctx, **kwargs), media_bag)
+            call_args = _bind_args(clean_sig, args, kwargs)
+            return _result_to_str(chain(call_args, ctx), media_bag)
 
     # ADK builds the tool schema from the signature; make it the clean one.
-    wrapper.__signature__ = sig
+    wrapper.__signature__ = clean_sig
     return wrapper
 
 
