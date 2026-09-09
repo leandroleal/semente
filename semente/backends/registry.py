@@ -24,4 +24,9 @@ def get_backend(engine: str | None = None) -> EngineBackend:
 
         return AdkBackend()
 
-    raise ValueError(f"Unknown engine: {name!r} (available: agno, adk)")
+    if name == "pi":
+        from semente.backends.pi import PiBackend
+
+        return PiBackend()
+
+    raise ValueError(f"Unknown engine: {name!r} (available: agno, adk, pi)")
