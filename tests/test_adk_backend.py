@@ -4,7 +4,8 @@ Covers the engine-agnostic seams the ADK backend owns: media bag (A-M),
 tool-hook bridge (A-H), and knowledge tool injection (A-K).
 """
 
-from semente.backends.adk import _adapt_tool, _new_media_bag
+from semente.backends.adk import _adapt_tool
+from semente.backends.toolkit import new_media_bag
 from semente.knowledge import build_search_tool
 from semente.tools import tool
 from semente.tools.types import Image, ToolResult
@@ -17,7 +18,7 @@ def test_media_bag_stashes_media_and_returns_text():
             images=[Image(content=b"PNGDATA", mime_type="image/png")],
         )
 
-    bag = _new_media_bag()
+    bag = new_media_bag()
     adapted = _adapt_tool(make_map, bag)
     out = adapted("f1")
 
@@ -31,7 +32,7 @@ def test_media_bag_passes_plain_strings_through():
     def echo(text: str) -> str:
         return text
 
-    bag = _new_media_bag()
+    bag = new_media_bag()
     adapted = _adapt_tool(echo, bag)
     assert adapted("hi") == "hi"
     assert bag == {"images": [], "videos": [], "audios": [], "files": []}
@@ -63,7 +64,7 @@ class _FakeToolContext:
 
 
 def test_hook_short_circuits_without_property():
-    bag = _new_media_bag()
+    bag = new_media_bag()
     adapted = _adapt_tool(_make_gated_tool(), bag)
     out = adapted(feature_id="f1", tool_context=_FakeToolContext({}))
     assert out == "NO_PROPERTY"
@@ -71,7 +72,7 @@ def test_hook_short_circuits_without_property():
 
 
 def test_hook_continues_chain_with_property():
-    bag = _new_media_bag()
+    bag = new_media_bag()
     adapted = _adapt_tool(_make_gated_tool(), bag)
     out = adapted(feature_id="f1", tool_context=_FakeToolContext({"all_properties": [1]}))
     assert out == "map for f1"
@@ -81,7 +82,7 @@ def test_hook_continues_chain_with_property():
 def test_hook_schema_strips_run_context():
     import inspect
 
-    adapted = _adapt_tool(_make_gated_tool(), _new_media_bag())
+    adapted = _adapt_tool(_make_gated_tool(), new_media_bag())
     params = list(inspect.signature(adapted).parameters)
     assert params == ["feature_id"]
 

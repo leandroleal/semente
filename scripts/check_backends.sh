@@ -4,7 +4,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-for engine in agno adk pi; do
+for engine in agno adk pi bare; do
   echo "--- engine: $engine ---"
   APP_ENV=development GOOGLE_API_KEY=dummy-key SEMENTE_ENGINE="$engine" \
     .venv/bin/python -c "

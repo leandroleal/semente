@@ -27,52 +27,15 @@ import re
 from typing import Any
 
 from semente.backends.base import Agent, AgentInput, AgentSpec, AgentTurn, EngineBackend
-from semente.tools.types import ToolResult
-
-
-def _unwrap(func):
-    # agno Function wraps the entrypoint; semente.tool wraps the original func.
-    if hasattr(func, "entrypoint"):
-        func = func.entrypoint
-    while hasattr(func, "__wrapped__"):
-        func = func.__wrapped__
-    return func
-
-
-def _expand_tools(tools: list) -> list:
-    """Expand agno toolkits (e.g. Calculator) into their member functions."""
-    expanded = []
-    for t in tools:
-        functions = getattr(t, "functions", None)
-        if isinstance(functions, dict):
-            expanded.extend(functions.values())
-        else:
-            expanded.append(t)
-    return expanded
-
-
-def _new_media_bag() -> dict:
-    return {"images": [], "videos": [], "audios": [], "files": []}
-
-
-def _result_to_str(result, media_bag: dict) -> str:
-    """Convert a tool result to the text ADK feeds back to the LLM, stashing
-    any media artifacts in the per-run bag (A-M: media never enters the loop)."""
-    if isinstance(result, ToolResult):
-        if result.images:
-            media_bag["images"].extend(result.images)
-        if result.videos:
-            media_bag["videos"].extend(result.videos)
-        if result.audios:
-            media_bag["audios"].extend(result.audios)
-        if result.files:
-            media_bag["files"].extend(result.files)
-        return result.content
-    if isinstance(result, str):
-        return result
-    if isinstance(result, dict):
-        return json.dumps(result, default=str)
-    return str(result)
+from semente.backends.toolkit import (
+    StateContext,
+    bind_args,
+    build_hook_chain,
+    expand_tools,
+    new_media_bag,
+    result_to_str,
+    unwrap,
+)
 
 
 class _ToolContextAdapter:
@@ -90,52 +53,8 @@ class _ToolContextAdapter:
         return getattr(self._tc, "user_id", None)
 
 
-class _StateContext:
-    """Minimal Context for resolving dynamic tool lists against a state dict."""
-
-    def __init__(self, session_state: dict):
-        self.session_state = session_state
-
-
-def _bind_args(sig, args, kwargs) -> dict:
-    bound = sig.bind(*args, **kwargs)
-    bound.apply_defaults()
-    return dict(bound.arguments)
-
-
-def _build_hook_chain(func, hooks, has_run_context):
-    """Replicate agno's nested tool_hooks chain (middleware semantics).
-
-    Innermost calls the raw function; each hook wraps the next and may either
-    call ``function_call(**arguments)`` to continue the chain or return a value
-    to short-circuit. Mirrors agno.tools.function._build_nested_execution_chain.
-    """
-
-    def entrypoint(args, ctx):
-        if has_run_context:
-            return func(**args, run_context=ctx)
-        return func(**args)
-
-    chain = entrypoint
-    for hook in reversed(hooks):
-
-        def make_wrapper(inner, hook):
-            def wrapper(args, ctx):
-                def next_func(**kwargs):
-                    return inner(kwargs, ctx)
-
-                # The rate-limit hook keys its cache on function_call.__name__.
-                next_func.__name__ = getattr(func, "__name__", "tool")
-                return hook(run_context=ctx, function_call=next_func, arguments=args)
-
-            return wrapper
-
-        chain = make_wrapper(chain, hook)
-    return chain
-
-
 def _adapt_tool(tool, media_bag: dict):
-    func = _unwrap(tool)
+    func = unwrap(tool)
     sig = inspect.signature(func)
     has_run_context = "run_context" in sig.parameters
     hooks = getattr(tool, "tool_hooks", None) or []
@@ -145,23 +64,23 @@ def _adapt_tool(tool, media_bag: dict):
         parameters=[p for p in sig.parameters.values() if p.name != "run_context"]
     )
 
-    chain = _build_hook_chain(func, hooks, has_run_context)
+    chain = build_hook_chain(func, hooks, has_run_context)
     needs_ctx = has_run_context or bool(hooks)
 
     if not needs_ctx:
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            call_args = _bind_args(clean_sig, args, kwargs)
-            return _result_to_str(chain(call_args, None), media_bag)
+            call_args = bind_args(clean_sig, args, kwargs)
+            return result_to_str(chain(call_args, None), media_bag)
 
     else:
 
         @functools.wraps(func)
         def wrapper(*args, tool_context=None, **kwargs):
-            ctx = _ToolContextAdapter(tool_context) if tool_context is not None else _StateContext({})
-            call_args = _bind_args(clean_sig, args, kwargs)
-            return _result_to_str(chain(call_args, ctx), media_bag)
+            ctx = _ToolContextAdapter(tool_context) if tool_context is not None else StateContext({})
+            call_args = bind_args(clean_sig, args, kwargs)
+            return result_to_str(chain(call_args, ctx), media_bag)
 
     # ADK builds the tool schema from the signature; make it the clean one.
     wrapper.__signature__ = clean_sig
@@ -205,12 +124,12 @@ class AdkAgentAdapter:
         tools_or_callable = self.spec.tools
         if callable(tools_or_callable) and not isinstance(tools_or_callable, list):
             try:
-                raw = tools_or_callable(_StateContext(session_state))
+                raw = tools_or_callable(StateContext(session_state))
             except TypeError:
                 raw = tools_or_callable()
         else:
             raw = tools_or_callable or []
-        return [_adapt_tool(t, media_bag) for t in _expand_tools(list(raw))]
+        return [_adapt_tool(t, media_bag) for t in expand_tools(list(raw))]
 
     def run(self, input: AgentInput) -> AgentTurn:
         from google.adk.agents import LlmAgent
@@ -219,7 +138,7 @@ class AdkAgentAdapter:
         from google.genai import types
 
         state = input.session_state if input.session_state is not None else {}
-        media_bag = _new_media_bag()
+        media_bag = new_media_bag()
 
         instruction = self.spec.instructions
         if not callable(instruction):

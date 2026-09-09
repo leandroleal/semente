@@ -1,0 +1,158 @@
+"""Engine-neutral tool execution — shared by the ADK and bare backends.
+
+Every non-Agno engine needs the same tool seam: unwrap agno Functions, expand
+toolkits, run the hook chain, stash media in a per-run bag, and produce the
+OpenAI-style schema the model sees. Agno does all of this natively; ADK and
+the bare backend share this module.
+"""
+
+from __future__ import annotations
+
+import inspect
+import json
+from typing import Any
+
+from semente.tools.types import ToolResult
+
+
+class StateContext:
+    """Minimal Context for resolving dynamic tools/instructions against a state dict."""
+
+    def __init__(self, session_state: dict):
+        self.session_state = session_state
+        self.user_id = None
+        self.messages = None
+
+
+def unwrap(func):
+    # agno Function wraps the entrypoint; semente.tool wraps the original func.
+    if hasattr(func, "entrypoint"):
+        func = func.entrypoint
+    while hasattr(func, "__wrapped__"):
+        func = func.__wrapped__
+    return func
+
+
+def expand_tools(tools: list) -> list:
+    """Expand agno toolkits (e.g. Calculator) into their member functions."""
+    expanded = []
+    for t in tools:
+        functions = getattr(t, "functions", None)
+        if isinstance(functions, dict):
+            expanded.extend(functions.values())
+        else:
+            expanded.append(t)
+    return expanded
+
+
+def new_media_bag() -> dict:
+    return {"images": [], "videos": [], "audios": [], "files": []}
+
+
+def result_to_str(result, media_bag: dict) -> str:
+    """Convert a tool result to the text the engine feeds back to the LLM,
+    stashing any media artifacts in the per-run bag (media never enters the loop)."""
+    if isinstance(result, ToolResult):
+        if result.images:
+            media_bag["images"].extend(result.images)
+        if result.videos:
+            media_bag["videos"].extend(result.videos)
+        if result.audios:
+            media_bag["audios"].extend(result.audios)
+        if result.files:
+            media_bag["files"].extend(result.files)
+        return result.content
+    if isinstance(result, str):
+        return result
+    if isinstance(result, dict):
+        return json.dumps(result, default=str)
+    return str(result)
+
+
+def bind_args(sig, args, kwargs) -> dict:
+    bound = sig.bind(*args, **kwargs)
+    bound.apply_defaults()
+    return dict(bound.arguments)
+
+
+def build_hook_chain(func, hooks, has_run_context):
+    """Replicate agno's nested tool_hooks chain (middleware semantics).
+
+    Innermost calls the raw function; each hook wraps the next and may either
+    call ``function_call(**arguments)`` to continue the chain or return a value
+    to short-circuit. Mirrors agno.tools.function._build_nested_execution_chain.
+    """
+
+    def entrypoint(args, ctx):
+        if has_run_context:
+            return func(**args, run_context=ctx)
+        return func(**args)
+
+    chain = entrypoint
+    for hook in reversed(hooks):
+
+        def make_wrapper(inner, hook):
+            def wrapper(args, ctx):
+                def next_func(**kwargs):
+                    return inner(kwargs, ctx)
+
+                # The rate-limit hook keys its cache on function_call.__name__.
+                next_func.__name__ = getattr(func, "__name__", "tool")
+                return hook(run_context=ctx, function_call=next_func, arguments=args)
+
+            return wrapper
+
+        chain = make_wrapper(chain, hook)
+    return chain
+
+
+def run_tool(tool, args: dict, ctx, media_bag: dict) -> str:
+    """Execute one tool: hook chain + raw func; media stashed, text returned."""
+    func = unwrap(tool)
+    sig = inspect.signature(func)
+    has_run_context = "run_context" in sig.parameters
+    hooks = getattr(tool, "tool_hooks", None) or []
+    chain = build_hook_chain(func, hooks, has_run_context)
+    return result_to_str(chain(args, ctx), media_bag)
+
+
+def tool_schema(tool) -> dict:
+    """OpenAI-style function schema (name/description/parameters) for one tool."""
+    if hasattr(tool, "to_dict"):
+        d = tool.to_dict()
+        if isinstance(d, dict):
+            return d
+    func = unwrap(tool)
+    sig = inspect.signature(func)
+    properties: dict = {}
+    required: list = []
+    for name, p in sig.parameters.items():
+        if name == "run_context":
+            continue
+        properties[name] = {"type": _py_type_to_json(p.annotation)}
+        if p.default is inspect.Parameter.empty:
+            required.append(name)
+    return {
+        "name": getattr(func, "__name__", "tool"),
+        "description": (inspect.getdoc(func) or "").strip(),
+        "parameters": {"type": "object", "properties": properties, "required": required},
+    }
+
+
+def _py_type_to_json(annotation) -> str:
+    if annotation is inspect.Parameter.empty:
+        return "string"
+    origin = getattr(annotation, "__origin__", None)
+    if annotation is str or origin is str:
+        return "string"
+    if annotation is int or origin is int:
+        return "integer"
+    if annotation is float or origin is float:
+        return "number"
+    if annotation is bool or origin is bool:
+        return "boolean"
+    if annotation is list or origin is list:
+        return "array"
+    if annotation is dict or origin is dict:
+        return "object"
+    return "string"
