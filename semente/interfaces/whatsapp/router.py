@@ -16,17 +16,8 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
-from agno.agent.agent import Agent
-from agno.agent.remote import RemoteAgent
-from agno.db.base import AsyncBaseDb, BaseDb, SessionType
-
-from agno.session.agent import AgentSession
-from agno.session.team import TeamSession
-from agno.session.workflow import WorkflowSession
-from agno.team.remote import RemoteTeam
-from agno.team.team import Team
-from agno.utils.log import log_error, log_info, log_warning
-from agno.workflow import RemoteWorkflow, Workflow
+from semente.core.orchestrator import Workflow
+from semente.logging import log_error, log_info, log_warning
 
 from semente.interfaces.whatsapp.security import validate_webhook_signature
 from semente.interfaces.whatsapp.helpers import (
@@ -89,36 +80,18 @@ _WA_TOOL_NAMES = frozenset(
 
 
 class _SessionConfig(NamedTuple):
-    session_type: SessionType
-    session_class: Type[Any]
-    id_field: str
-    db: Any
+    store: Any
     has_db: bool
-    is_async_db: bool
+
 
 class _DebouceStatus(StrEnum):
     PENDING: str = auto()
     COMPLETE: str = auto()
 
 
-_SESSION_DISPATCH = {
-    "agent": (SessionType.AGENT, AgentSession, "agent_id"),
-    "team": (SessionType.TEAM, TeamSession, "team_id"),
-    "workflow": (SessionType.WORKFLOW, WorkflowSession, "workflow_id"),
-}
-
-
-def _resolve_session_config(entity: Any, entity_type: str) -> _SessionConfig:
-    session_type, session_class, id_field = _SESSION_DISPATCH[entity_type]
-    db = getattr(entity, "db", None)
-    return _SessionConfig(
-        session_type=session_type,
-        session_class=session_class,
-        id_field=id_field,
-        db=db,
-        has_db=isinstance(db, (BaseDb, AsyncBaseDb)),
-        is_async_db=isinstance(db, AsyncBaseDb),
-    )
+def _resolve_session_config(workflow: Workflow) -> _SessionConfig:
+    store = getattr(workflow, "store", None)
+    return _SessionConfig(store=store, has_db=store is not None)
 
 
 def _format_reasoning(text: str) -> str:
@@ -158,9 +131,7 @@ def decrypt_phone(token: str, key: bytes) -> str:
 
 def attach_routes(
     router: APIRouter,
-    agent: Optional[Union[Agent, RemoteAgent]] = None,
-    team: Optional[Union[Team, RemoteTeam]] = None,
-    workflow: Optional[Union[Workflow, RemoteWorkflow]] = None,
+    workflow: Workflow = None,
     show_reasoning: bool = False,
     send_user_number_to_context: bool = False,
     access_token: Optional[str] = None,
@@ -170,22 +141,18 @@ def attach_routes(
     enable_encryption: bool = False,
     encryption_key: Optional[bytes] = None,
 ) -> APIRouter:
-    if agent is None and team is None and workflow is None:
-        raise ValueError("Either agent, team, or workflow must be provided.")
+    if workflow is None:
+        raise ValueError("A workflow must be provided.")
 
     # Inner functions capture config via closure to keep each instance isolated
-    entity = agent or team or workflow
-    # entity_type drives session dispatch and /new handler
-    entity_type: Literal["agent", "team", "workflow"] = "agent" if agent else "team" if team else "workflow"
-    raw_name = getattr(entity, "name", None)
+    entity = workflow
+    entity_name = getattr(entity, "name", "workflow")
     # entity_name labels messages; entity_id namespaces session IDs
-    entity_name = raw_name if isinstance(raw_name, str) else entity_type
-    # Multiple WhatsApp routers on one app need unique operation_ids
     op_suffix = entity_name.lower().replace(" ", "_")
-    entity_id = getattr(entity, "id", None) or entity_name
+    entity_id = entity_name
 
     # Used by /new handler (create sessions) and process_message (find latest)
-    session_config = _resolve_session_config(entity, entity_type)
+    session_config = _resolve_session_config(entity)
 
     config = WhatsAppConfig.init(
         access_token=access_token,
@@ -296,19 +263,7 @@ def attach_routes(
                     return
                 try:
                     new_session_id = f"wa:{entity_id}:{user_id}:{uuid4().hex[:8]}"
-                    now = int(time())
-                    new_session = session_config.session_class(
-                        session_id=new_session_id,
-                        user_id=user_id,
-                        session_data={},
-                        created_at=now,
-                        updated_at=now,
-                        **{session_config.id_field: entity_id},
-                    )
-                    if session_config.is_async_db:
-                        await session_config.db.upsert_session(new_session)
-                    else:
-                        session_config.db.upsert_session(new_session)
+                    session_config.store.save(user_id, new_session_id, session_state={}, runs=[])
                     await send_whatsapp_message_async(phone_number, _SESSION_RESET_MESSAGE, config)
                 except Exception as e:
                     log_warning(f"Failed to persist /new session: {e}")
@@ -326,21 +281,9 @@ def attach_routes(
             session_id = default_session_id
             if session_config.has_db:
                 try:
-                    # Find the most recent session for this user + entity
-                    session_filter = dict(
-                        session_type=session_config.session_type,
-                        user_id=user_id,
-                        component_id=entity_id,
-                        limit=1,
-                        sort_by="updated_at",
-                        sort_order="desc",
-                    )
-                    if session_config.is_async_db:
-                        sessions = await session_config.db.get_sessions(**session_filter)
-                    else:
-                        sessions = session_config.db.get_sessions(**session_filter)
+                    sessions = session_config.store.list_sessions(user_id)
                     if sessions:
-                        session_id = sessions[0].session_id
+                        session_id = sessions[0]
                 except Exception as e:
                     log_warning(f"Session lookup failed, using default: {e}")
 
@@ -398,11 +341,8 @@ def attach_routes(
                 final_text = notice + final_text
 
             if send_user_number_to_context:
-                run_kwargs["dependencies"] = {
-                    "User's WhatsApp number": phone_number,
-                    "Incoming WhatsApp message ID": message_id,
-                }
-                run_kwargs["add_dependencies_to_context"] = True
+                # ponytail: semente workflow has no dependencies concept; ignored for now.
+                pass
 
             # Refresh typing indicator every 20s while the agent runs
             # WhatsApp auto-dismisses the indicator after ~25s
@@ -416,20 +356,10 @@ def attach_routes(
 
             typing_task = asyncio.create_task(_keep_typing())
             try:
-                log_warning(f"Running agent! Kwargs:\n{run_kwargs}")
-                response = await entity.arun(final_text, **run_kwargs)  # type: ignore[union-attr]
+                log_warning(f"Running workflow! Kwargs:\n{run_kwargs}")
+                response = await asyncio.to_thread(entity.run, input=final_text, **run_kwargs)
             finally:
                 typing_task.cancel()
-
-            if response.status == "ERROR":
-                await send_whatsapp_message_async(phone_number, _ERROR_MESSAGE, config)
-                log_error(response.content)
-                return
-
-            if show_reasoning and hasattr(response, "reasoning_content") and response.reasoning_content:
-                reasoning = _format_reasoning(response.reasoning_content)
-                if reasoning:
-                    await send_whatsapp_message_async(phone_number, reasoning, config, italics=True)
 
             for attr, media_type in (
                 ("images", "image"),
@@ -440,18 +370,8 @@ def attach_routes(
                 items = getattr(response, attr, None)
                 if items:
                     await upload_and_send_media_async(items, media_type, phone_number, config)
-            if response.response_audio:
-                await upload_and_send_media_async(
-                    [response.response_audio], "audio", phone_number, config, send_text_fallback=False
-                )
 
-            response_tools = getattr(response, "tools", None)
-            # Only suppress text if a WA tool ran AND didn't error
-            tools_sent_message = response_tools and any(
-                t.tool_name in _WA_TOOL_NAMES and not t.tool_call_error for t in response_tools
-            )
-            # Send text if no tool already messaged the user
-            if not tools_sent_message and response.content:
+            if response.content:
                 await send_whatsapp_message_async(phone_number, response.content, config)
 
         except Exception as e:

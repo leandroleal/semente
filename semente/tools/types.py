@@ -67,6 +67,7 @@ class Audio:
     sample_rate: Optional[int] = None
     channels: Optional[int] = None
     transcript: Optional[str] = None
+    ext: Optional[str] = None
 
 
 @dataclass

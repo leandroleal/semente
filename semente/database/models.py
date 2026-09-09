@@ -1,5 +1,5 @@
 import datetime
-from sqlalchemy import Column, Integer, Text, String, DateTime, Boolean
+from sqlalchemy import Column, Integer, Text, String, DateTime, Boolean, JSON
 
 from semente.database.session import Base
 
@@ -43,5 +43,16 @@ class AnalysisFeedback(Base):
     original_question = Column(Text)
     desired_analysis = Column(Text)
     context = Column(Text)
+
+
+class WorkflowSessionRecord(Base):
+    """Canonical workflow session: state + history pairs per (user, session)."""
+    __tablename__ = 'workflow_sessions'
+
+    session_id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, index=True)
+    session_state = Column(JSON, default=dict)
+    runs = Column(JSON, default=list)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
 

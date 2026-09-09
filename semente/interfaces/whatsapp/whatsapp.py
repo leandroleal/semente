@@ -1,44 +1,38 @@
+"""WhatsApp channel — a FastAPI router factory (engine-free).
+
+Wraps the Semente workflow behind the WhatsApp Business API webhook. No Agno
+``BaseInterface``/``AgentOS`` — the router is mounted directly on the app.
+"""
+
+from __future__ import annotations
+
 from os import getenv
-from typing import List, Optional, Union
+from typing import List, Optional
 
 from fastapi.routing import APIRouter
-
-from agno.agent import Agent, RemoteAgent
-from agno.os.interfaces.base import BaseInterface
-from agno.team import RemoteTeam, Team
-from agno.workflow import RemoteWorkflow, Workflow
 
 from semente.interfaces.whatsapp.router import attach_routes
 
 
-class Whatsapp(BaseInterface):
+class Whatsapp:
     type = "whatsapp"
-
-    router: APIRouter
 
     def __init__(
         self,
-        agent: Optional[Union[Agent, RemoteAgent]] = None,
-        team: Optional[Union[Team, RemoteTeam]] = None,
-        workflow: Optional[Union[Workflow, RemoteWorkflow]] = None,
+        workflow=None,
         prefix: str = "/whatsapp",
         tags: Optional[List[str]] = None,
         show_reasoning: bool = False,
         send_user_number_to_context: bool = False,
-        # Falls back to env vars when None
         access_token: Optional[str] = None,
         phone_number_id: Optional[str] = None,
         verify_token: Optional[str] = None,
-        # Timeout in seconds for media downloads/uploads (images, video, docs)
         media_timeout: int = 30,
         enable_encryption: bool = False,
         encryption_key: Optional[str] = None,
     ):
-        self.agent = agent
-        self.team = team
         self.workflow = workflow
         self.prefix = prefix
-        # Tags group endpoints in OpenAPI docs
         self.tags = tags or ["Whatsapp"]
         self.show_reasoning = show_reasoning
         self.send_user_number_to_context = send_user_number_to_context
@@ -59,16 +53,13 @@ class Whatsapp(BaseInterface):
             if len(self._encryption_key) != 32:
                 raise ValueError("encryption_key must be exactly 32 bytes (64 hex chars)")
 
-        if not (self.agent or self.team or self.workflow):
-            raise ValueError("Whatsapp requires an agent, team, or workflow")
+        if workflow is None:
+            raise ValueError("Whatsapp requires a workflow")
 
     def get_router(self) -> APIRouter:
-        self.router = APIRouter(prefix=self.prefix, tags=self.tags)  # type: ignore
-
-        self.router = attach_routes(
-            router=self.router,
-            agent=self.agent,
-            team=self.team,
+        router = APIRouter(prefix=self.prefix, tags=self.tags)
+        return attach_routes(
+            router=router,
             workflow=self.workflow,
             show_reasoning=self.show_reasoning,
             send_user_number_to_context=self.send_user_number_to_context,
@@ -79,5 +70,3 @@ class Whatsapp(BaseInterface):
             enable_encryption=self.enable_encryption,
             encryption_key=self._encryption_key,
         )
-
-        return self.router

@@ -2,7 +2,7 @@ from typing import Optional, Dict, Any
 
 from agno.agent import Agent, RunOutput
 from agno.utils.log import log_error, log_debug
-from agno.workflow import StepInput, StepOutput, Step
+from semente.core.orchestrator import StepInput, StepOutput, Step
 
 from semente.schemas.input_manager import InputManager
 

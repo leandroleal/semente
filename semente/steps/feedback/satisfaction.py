@@ -16,7 +16,7 @@ External interface:
 from typing import Any, Dict, Optional
 
 from agno.utils.log import log_debug, log_error
-from agno.workflow.types import StepInput, StepOutput
+from semente.core.orchestrator import StepInput, StepOutput
 
 from semente.agents.feedback_agent import satisfaction_evaluation_agent
 

@@ -19,19 +19,16 @@ import os
 from pathlib import Path
 from typing import Any
 
-from agno.workflow import Condition, Parallel, Step
-from agno.workflow.types import StepInput
-
 from semente.agents.build_agent import build_agent
 from semente.configs.config import config
 from semente.configs.prompts import set_prompts_dir
+from semente.core.orchestrator import Condition, Parallel, Step, StepInput, Workflow
 from semente.core.step_factory import agent_executor_factory
-from semente.database.agno_db import db
 from semente.database.models import UserTermsAcceptance
 from semente.database.session import SessionLocal
+from semente.database.session_store import store
 from semente.domain import DomainSpec
 from semente.manifest import Manifest
-from semente.models.persist_on_success_workflow import PersistOnSuccessWorkflow
 from semente.schemas.workflow_state import WorkflowState
 
 
@@ -63,7 +60,7 @@ def _needs_onboarding(step_input: StepInput, session_state: dict[str, Any]) -> b
         db_session.close()
 
 
-def build_workflow(agent: Any, manifest: Manifest) -> PersistOnSuccessWorkflow:
+def build_workflow(agent: Any, manifest: Manifest) -> Workflow:
     """Assemble the root workflow for a built agent, honoring feature toggles."""
     # Deferred imports — these modules load prompts at import time, so they
     # must be imported after the language/prompts dir has been applied.
@@ -117,13 +114,10 @@ def build_workflow(agent: Any, manifest: Manifest) -> PersistOnSuccessWorkflow:
     )
     steps.append(output_step)
 
-    return PersistOnSuccessWorkflow(
+    return Workflow(
         name=f"{manifest.name} Workflow",
-        db=db,
-        debug_mode=config.DEBUG_MODE,
-        add_workflow_history_to_steps=True,
-        num_history_runs=1,
         steps=steps,
+        store=store,
     )
 
 
@@ -162,10 +156,10 @@ def _apply_prompts(manifest: Manifest) -> None:
             set_prompts_dir(lang_dir)
 
 
-_workflow_cache: PersistOnSuccessWorkflow | None = None
+_workflow_cache: Workflow | None = None
 
 
-def get_workflow(manifest_path: str | None = None) -> PersistOnSuccessWorkflow:
+def get_workflow(manifest_path: str | None = None) -> Workflow:
     """Load manifest + domain, apply language, build the agent and workflow, cache."""
     global _workflow_cache
     if _workflow_cache is not None:

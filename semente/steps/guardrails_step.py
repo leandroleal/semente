@@ -9,8 +9,8 @@ External interface:
     _guardrail_pii_executor  -- StepExecutor consumed by main_workflow.
 """
 from agno.utils.log import log_error
-from agno.workflow import Step
-from agno.workflow.types import StepInput, StepOutput
+from semente.core.orchestrator import Step
+from semente.core.orchestrator import StepInput, StepOutput
 
 from semente.guardrails.pii_gate import check_pii, mensagem_bloqueio
 from semente.services.audio.tts import generate_speech

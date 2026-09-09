@@ -8,7 +8,7 @@ External interface:
     feedback_workflow  -- the Workflow imported by main_workflow.
 """
 
-from agno.workflow import Parallel, Router, Step, Workflow
+from semente.core.orchestrator import Parallel, Router, Step, Workflow
 
 from semente.steps.feedback.persist_feedback import (
     persist_negative_feedback,

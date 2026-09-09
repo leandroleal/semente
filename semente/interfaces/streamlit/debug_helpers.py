@@ -8,8 +8,8 @@ in st.session_state across reruns.
 from time import time
 from typing import Any, Dict, List
 
-from agno.run.workflow import WorkflowRunOutput
-from agno.run.agent import RunOutput
+
+
 
 
 def truncate_string(s: Any, max_len: int = 500) -> str:
@@ -93,7 +93,7 @@ def _format_state_value(key: str, value: Any) -> Any:
     return truncate_string(value, 300)
 
 
-def extract_tool_calls(agent_run: RunOutput) -> List[Dict[str, Any]]:
+def extract_tool_calls(agent_run: Any) -> List[Dict[str, Any]]:
     """Extract tool call information from a single agent RunOutput."""
     tool_calls: List[Dict[str, Any]] = []
 
@@ -199,7 +199,7 @@ def extract_metrics(metrics: Any) -> Dict[str, Any]:
     return result
 
 
-def extract_messages(agent_run: RunOutput) -> List[Dict[str, Any]]:
+def extract_messages(agent_run: Any) -> List[Dict[str, Any]]:
     """Extract message history from a single agent RunOutput."""
     messages: List[Dict[str, Any]] = []
 
@@ -232,7 +232,7 @@ def extract_messages(agent_run: RunOutput) -> List[Dict[str, Any]]:
     return messages
 
 
-def extract_agent_run_data(agent_run: RunOutput) -> Dict[str, Any]:
+def extract_agent_run_data(agent_run: Any) -> Dict[str, Any]:
     """Extract debug data from a single agent RunOutput.
 
     Returns a dict with agent identification, content preview, tool calls,
@@ -279,15 +279,17 @@ def extract_agent_run_data(agent_run: RunOutput) -> Dict[str, Any]:
     return result
 
 
-def extract_step_results(response: WorkflowRunOutput) -> List[Dict[str, Any]]:
-    """Extract step results summary from WorkflowRunOutput."""
+def extract_step_results(response: Any) -> List[Dict[str, Any]]:
+    """Extract step results summary from a Semente StepOutput."""
     step_summaries: List[Dict[str, Any]] = []
 
-    if not hasattr(response, "step_results") or not response.step_results:
+    # Semente StepOutput nests child steps under `.steps`.
+    raw_steps = getattr(response, "steps", None) or getattr(response, "step_results", None)
+    if not raw_steps:
         return step_summaries
 
-    for step in response.step_results:
-        # step_results can contain lists (from Parallel) or individual StepOutputs
+    for step in raw_steps:
+        # steps can contain lists (from Parallel) or individual StepOutputs
         if isinstance(step, list):
             for sub_step in step:
                 step_summaries.append(_extract_single_step(sub_step))
@@ -312,7 +314,7 @@ def _extract_single_step(step: Any) -> Dict[str, Any]:
 
 
 def extract_workflow_debug_data(
-    response: WorkflowRunOutput,
+    response: Any,
     session_id: str,
     user_query: str,
 ) -> Dict[str, Any]:

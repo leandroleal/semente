@@ -5,7 +5,7 @@ import tempfile
 import streamlit as st
 
 from typing import List
-from agno.media import Image, Audio
+from semente import Image, Audio
 
 from semente.configs.config import config
 from semente.interfaces.streamlit.debug_helpers import extract_workflow_debug_data, extract_session_state

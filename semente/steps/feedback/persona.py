@@ -17,7 +17,7 @@ External interface:
 from typing import Any, Dict
 
 from agno.utils.log import log_error
-from agno.workflow.types import StepInput, StepOutput
+from semente.core.orchestrator import StepInput, StepOutput
 
 from semente.agents.persona_agent import persona_manager_agent
 from semente.schemas.user_mood import UserMood

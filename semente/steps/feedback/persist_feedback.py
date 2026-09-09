@@ -15,7 +15,7 @@ External interface:
 
 from typing import Any, Dict
 
-from agno.workflow.types import StepInput, StepOutput
+from semente.core.orchestrator import StepInput, StepOutput
 
 
 # TODO: implement persistence once PositiveFeedback/NegativeFeedback tables
