@@ -15,8 +15,8 @@ Key adaptations (see MULTI_ENGINE.md §4.2):
   agno toolkits (e.g. Calculator) are expanded.
 - **Multimodal input**: Semente media -> ``genai`` content parts.
 
-Known degradations (documented): media OUT is dropped (text-only tool
-results), knowledge/skills are not wired, engine tool_hooks are not applied.
+Known degradations (documented): knowledge/skills are not wired, engine
+tool_hooks are not applied.
 """
 
 from __future__ import annotations
@@ -52,9 +52,22 @@ def _expand_tools(tools: list) -> list:
     return expanded
 
 
-def _result_to_str(result) -> str:
+def _new_media_bag() -> dict:
+    return {"images": [], "videos": [], "audios": [], "files": []}
+
+
+def _result_to_str(result, media_bag: dict) -> str:
+    """Convert a tool result to the text ADK feeds back to the LLM, stashing
+    any media artifacts in the per-run bag (A-M: media never enters the loop)."""
     if isinstance(result, ToolResult):
-        # ponytail: media OUT is dropped for ADK for now; MediaBag lands later.
+        if result.images:
+            media_bag["images"].extend(result.images)
+        if result.videos:
+            media_bag["videos"].extend(result.videos)
+        if result.audios:
+            media_bag["audios"].extend(result.audios)
+        if result.files:
+            media_bag["files"].extend(result.files)
         return result.content
     if isinstance(result, str):
         return result
@@ -85,7 +98,7 @@ class _StateContext:
         self.session_state = session_state
 
 
-def _adapt_tool(tool):
+def _adapt_tool(tool, media_bag: dict):
     func = _unwrap(tool)
     sig = inspect.signature(func)
     has_run_context = "run_context" in sig.parameters
@@ -100,14 +113,14 @@ def _adapt_tool(tool):
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            return _result_to_str(func(*args, **kwargs))
+            return _result_to_str(func(*args, **kwargs), media_bag)
 
     else:
 
         @functools.wraps(func)
         def wrapper(*args, tool_context=None, **kwargs):
             ctx = _ToolContextAdapter(tool_context) if tool_context is not None else _StateContext({})
-            return _result_to_str(func(*args, run_context=ctx, **kwargs))
+            return _result_to_str(func(*args, run_context=ctx, **kwargs), media_bag)
 
     # ADK builds the tool schema from the signature; make it the clean one.
     wrapper.__signature__ = sig
@@ -147,7 +160,7 @@ class AdkAgentAdapter:
         self.spec = spec
         self.app_name = app_name
 
-    def _resolve_tools(self, session_state: dict) -> list:
+    def _resolve_tools(self, session_state: dict, media_bag: dict) -> list:
         tools_or_callable = self.spec.tools
         if callable(tools_or_callable) and not isinstance(tools_or_callable, list):
             try:
@@ -156,7 +169,7 @@ class AdkAgentAdapter:
                 raw = tools_or_callable()
         else:
             raw = tools_or_callable or []
-        return [_adapt_tool(t) for t in _expand_tools(list(raw))]
+        return [_adapt_tool(t, media_bag) for t in _expand_tools(list(raw))]
 
     def run(self, input: AgentInput) -> AgentTurn:
         from google.adk.agents import LlmAgent
@@ -165,6 +178,7 @@ class AdkAgentAdapter:
         from google.genai import types
 
         state = input.session_state if input.session_state is not None else {}
+        media_bag = _new_media_bag()
 
         instruction = self.spec.instructions
         if not callable(instruction):
@@ -179,7 +193,7 @@ class AdkAgentAdapter:
             model=model,
             name=_sanitize_name(self.spec.name),
             instruction=instruction_provider,
-            tools=self._resolve_tools(state),
+            tools=self._resolve_tools(state, media_bag),
             output_schema=self.spec.output_schema,
         )
 
@@ -230,7 +244,14 @@ class AdkAgentAdapter:
             except json.JSONDecodeError:
                 structured = None
 
-        return AgentTurn(content=final_text, structured=structured)
+        return AgentTurn(
+            content=final_text,
+            structured=structured,
+            images=media_bag["images"] or None,
+            videos=media_bag["videos"] or None,
+            audio=media_bag["audios"] or None,
+            files=media_bag["files"] or None,
+        )
 
 
 def _sanitize_name(name: str) -> str:
