@@ -227,7 +227,15 @@ class Workflow:
         audio: Optional[list] = None,
         files: Optional[list] = None,
         session_state: Optional[dict] = None,
+        stream: bool = False,
+        stream_intermediate_steps: bool = False,
     ) -> StepOutput:
+        if stream:
+            # ponytail: streaming not yet implemented in the orchestrator; run
+            # synchronously and return the complete result (Phase 2 of the fix).
+            log_debug(
+                "Workflow.run(stream=True): streaming not implemented; running synchronously."
+            )
         session = self._load_session(user_id, session_id, session_state)
         step_input = StepInput(
             input=input,
@@ -276,7 +284,7 @@ class Workflow:
             runs=session.runs,
         )
 
-    def get_session_state(self, user_id: str, session_id: str) -> dict:
+    def get_session_state(self, user_id: Optional[str] = None, session_id: str = "") -> dict:
         if self.store is not None:
             loaded = self.store.get(user_id, session_id)
             if loaded is not None:
@@ -295,13 +303,13 @@ class SessionStore:
         self.session_factory = session_factory
         self.model = model
 
-    def get(self, user_id: str, session_id: str) -> Optional[dict]:
+    def get(self, user_id: Optional[str], session_id: str) -> Optional[dict]:
         db = self.session_factory()
         try:
-            record = db.query(self.model).filter(
-                self.model.session_id == session_id,
-                self.model.user_id == user_id,
-            ).first()
+            query = db.query(self.model).filter(self.model.session_id == session_id)
+            if user_id is not None:
+                query = query.filter(self.model.user_id == user_id)
+            record = query.first()
             if record is None:
                 return None
             return {
