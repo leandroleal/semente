@@ -16,7 +16,8 @@ External interface:
 
 from typing import Any, Dict
 
-from agno.utils.log import log_error
+from semente.logging import log_error
+from semente.backends.base import AgentInput
 from semente.core.orchestrator import StepInput, StepOutput
 
 from semente.agents.persona_agent import persona_manager_agent
@@ -46,13 +47,12 @@ def manage_persona(step_input: StepInput, session_state: Dict[str, Any]) -> Step
 
     user_msg = step_input.get_input_as_string() or ""
     try:
-        response = persona_manager_agent.run(
-            user_msg,
-            session_state={"user_mood": user_mood},
+        turn = persona_manager_agent.run(
+            AgentInput(text=user_msg, session_state={"user_mood": user_mood})
         )
-        if response and response.content:
+        if turn and turn.structured:
             # Parse the PersonaUpdate from the agent's response
-            persona_update = response.content
+            persona_update = turn.structured
             if isinstance(persona_update, dict):
                 persona_update = PersonaUpdate.model_validate(persona_update)
 

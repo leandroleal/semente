@@ -10,8 +10,9 @@ whatever text is available (resilient fallback).
 External interface:
     _input_processing_executor  -- StepExecutor consumed by main_workflow.
 """
-from agno.utils.log import log_error
+from semente.logging import log_error
 from semente.core.orchestrator import Step
+from semente.backends.base import AgentInput
 from semente.core.orchestrator import StepInput, StepOutput
 
 from semente.agents.media_agents import audio_transcription_agent, image_description_agent
@@ -27,8 +28,8 @@ def _input_processing_executor(step_input: StepInput) -> StepOutput:
 
     if step_input.images:
         try:
-            response = image_description_agent.run("", images=step_input.images)
-            description = response.content or ""
+            turn = image_description_agent.run(AgentInput(text="", images=step_input.images))
+            description = turn.content or ""
             if description:
                 parts.append(f"[IMAGEM]{description}[/IMAGEM]")
         except Exception as e:
@@ -36,8 +37,8 @@ def _input_processing_executor(step_input: StepInput) -> StepOutput:
 
     if step_input.audio:
         try:
-            response = audio_transcription_agent.run("", audio=step_input.audio)
-            transcription = response.content or ""
+            turn = audio_transcription_agent.run(AgentInput(text="", audio=step_input.audio))
+            transcription = turn.content or ""
             if transcription:
                 parts.append(transcription)
         except Exception as e:

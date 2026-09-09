@@ -8,7 +8,7 @@ through to the following agents.
 External interface:
     _guardrail_pii_executor  -- StepExecutor consumed by main_workflow.
 """
-from agno.utils.log import log_error
+from semente.logging import log_error
 from semente.core.orchestrator import Step
 from semente.core.orchestrator import StepInput, StepOutput
 

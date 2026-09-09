@@ -1,8 +1,8 @@
 from typing import Literal
 
-from agno.tools import tool
-from agno.run import RunContext
-from agno.utils.log import log_debug, log_warning, log_error
+from semente import tool
+from semente.context import Context as RunContext
+from semente.logging import log_debug, log_warning, log_error
 
 from semente.configs.prompts import get_tool_description
 

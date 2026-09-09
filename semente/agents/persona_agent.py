@@ -1,7 +1,7 @@
-from agno.agent import Agent
 from agno.run import RunContext
 
-from semente.configs.config import config
+from semente.backends.base import AgentSpec
+from semente.backends.registry import get_backend
 from semente.configs.prompts import get_agent_config
 from semente.schemas.user_persona import PersonaUpdate, UserPersona
 
@@ -37,12 +37,10 @@ def get_instructions(run_context: RunContext) -> str:
     return instructions
 
 
-persona_manager_agent = Agent(
-    name=_persona_config["name"],
-    model=config.model,
-    fallback_models=[config.fallback_model],
-    instructions=get_instructions,
-    output_schema=PersonaUpdate,
-    use_json_mode=True,
-    debug_mode=config.DEBUG_MODE,
+persona_manager_agent = get_backend().build_agent(
+    AgentSpec(
+        name=_persona_config["name"],
+        instructions=get_instructions,
+        output_schema=PersonaUpdate,
+    )
 )

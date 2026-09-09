@@ -10,8 +10,9 @@ External interface:
 
 from typing import Any, Dict, Optional
 
-from agno.utils.log import log_debug, log_error
+from semente.logging import log_debug, log_error
 from semente.core.orchestrator import Step
+from semente.backends.base import AgentInput
 from semente.core.orchestrator import StepInput, StepOutput
 
 from semente.agents.summary_agent import summary_agent
@@ -63,9 +64,8 @@ def summarization_executor(
         summary_input += f"[Última Iteração]\nUsuário: {user_msg}\n"
 
     try:
-        response = summary_agent.run(
-            summary_input,
-            session_state=session_state,
+        turn = summary_agent.run(
+            AgentInput(text=summary_input, session_state=session_state)
         )
     except Exception as exc:
         log_error(f"summarization_executor: agent failed: {exc}")
@@ -74,12 +74,8 @@ def summarization_executor(
         session_state["conversation_summary"] = summary_state.summary or ""
         return None
 
-    if response and response.content:
-        summary_state.summary = (
-            response.content
-            if isinstance(response.content, str)
-            else str(response.content)
-        )
+    if turn and turn.content:
+        summary_state.summary = turn.content
         summary_state.runs_count = 2
     else:
         log_debug("summarization_executor: agent returned empty content")

@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from agno.tools import tool
-from agno.utils.log import log_debug, log_warning, log_error
+from semente import tool
+from semente.logging import log_debug, log_warning, log_error
 
 from semente.configs.prompts import get_tool_description
 

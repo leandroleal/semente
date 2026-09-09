@@ -8,7 +8,7 @@ External interface:
     _final_output  -- StepExecutor consumed by main_workflow.
 """
 
-from agno.utils.log import log_debug
+from semente.logging import log_debug
 from semente.core.orchestrator import Step
 from semente.core.orchestrator import StepInput, StepOutput
 

@@ -1,10 +1,11 @@
 import re
 from datetime import datetime
-from agno.tools import tool
-from agno.run import RunContext
-from agno.agent import Agent
-from agno.utils.log import log_debug, log_warning, log_error
+from semente import tool
+from semente.context import Context as RunContext
+from semente.logging import log_debug, log_warning, log_error
 
+from semente.backends.base import AgentInput, AgentSpec
+from semente.backends.registry import get_backend
 from semente.configs.config import config
 from semente.configs.prompts import get_tool_description
 from semente.database.session import SessionLocal, engine
@@ -55,17 +56,19 @@ def _get_sanitized_history(run_context: RunContext) -> str:
     if not history_text:
         return ""
         
-    sanitizer_agent = Agent(
-        model=config.model,
-        description=(
-            "Você é um filtro de privacidade estrito. Leia a transcrição e reescreva semanticamente os dados, "
-            "substituindo nomes próprios de pessoas, cidades e propriedades rurais por tags genéricas "
-            "(como [USUARIO], [MUNICIPIO], [FAZENDA]). MANTENHA TODO O CONTEXTO AGRONÔMICO INTACTO."
+    sanitizer_agent = get_backend().build_agent(
+        AgentSpec(
+            name="pii_sanitizer",
+            instructions=lambda run_context: (
+                "Você é um filtro de privacidade estrito. Leia a transcrição e reescreva semanticamente os dados, "
+                "substituindo nomes próprios de pessoas, cidades e propriedades rurais por tags genéricas "
+                "(como [USUARIO], [MUNICIPIO], [FAZENDA]). MANTENHA TODO O CONTEXTO AGRONÔMICO INTACTO."
+            ),
         )
     )
     
     try:
-        sanitizer_response = sanitizer_agent.run(history_text)
+        sanitizer_response = sanitizer_agent.run(AgentInput(text=history_text))
         sanitized_history = sanitizer_response.content if sanitizer_response and sanitizer_response.content else history_text
     except Exception as sanitizer_error:
         log_warning(f"Sanitizador semântico falhou, usando fallback determinístico: {sanitizer_error}")

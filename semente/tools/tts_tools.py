@@ -11,10 +11,10 @@ workflow knows to synthesize speech for that turn, without paying the
 synthesis cost on every intermediate agent step.
 """
 
-from agno.media import Audio
-from agno.tools import tool
-from agno.tools.function import ToolResult
-from agno.utils.log import log_debug, log_error
+from semente import Audio
+from semente import tool
+from semente import ToolResult
+from semente.logging import log_debug, log_error
 
 from semente.configs.prompts import get_tool_description
 

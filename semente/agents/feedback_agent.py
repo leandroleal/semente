@@ -1,7 +1,7 @@
-from agno.agent import Agent
 from agno.run import RunContext
 
-from semente.configs.config import config
+from semente.backends.base import AgentSpec
+from semente.backends.registry import get_backend
 from semente.configs.prompts import get_agent_config
 from semente.schemas.user_mood import Effectiveness
 
@@ -9,20 +9,15 @@ from semente.schemas.user_mood import Effectiveness
 _remediation_config = get_agent_config("remediation_agent")
 _satisfaction_config = get_agent_config("satisfaction_agent")
 
-#============================================================
-#
-#============================================================
-remediation_agent = Agent(
-    name=_remediation_config["name"],
-    model=config.model,
-    instructions=_remediation_config["instructions"].strip(),
-    debug_mode=config.DEBUG_MODE,
+
+remediation_agent = get_backend().build_agent(
+    AgentSpec(
+        name=_remediation_config["name"],
+        instructions=lambda run_context: _remediation_config["instructions"].strip(),
+    )
 )
 
 
-#============================================================
-#
-#============================================================
 def get_satisfaction_instructions(run_context: RunContext) -> str:
     session_state = run_context.session_state or {}
     user_mood_dict = session_state.get("user_mood", None)
@@ -37,11 +32,10 @@ def get_satisfaction_instructions(run_context: RunContext) -> str:
     return f"{base_instructions}\n\n{scenario_text}"
 
 
-satisfaction_evaluation_agent = Agent(
-    name=_satisfaction_config["name"],
-    model=config.model,
-    fallback_models=[config.fallback_model],
-    output_schema=Effectiveness,
-    instructions=get_satisfaction_instructions,
-    debug_mode=config.DEBUG_MODE,
+satisfaction_evaluation_agent = get_backend().build_agent(
+    AgentSpec(
+        name=_satisfaction_config["name"],
+        instructions=get_satisfaction_instructions,
+        output_schema=Effectiveness,
+    )
 )

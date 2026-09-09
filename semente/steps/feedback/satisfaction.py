@@ -15,7 +15,8 @@ External interface:
 
 from typing import Any, Dict, Optional
 
-from agno.utils.log import log_debug, log_error
+from semente.logging import log_debug, log_error
+from semente.backends.base import AgentInput
 from semente.core.orchestrator import StepInput, StepOutput
 
 from semente.agents.feedback_agent import satisfaction_evaluation_agent
@@ -44,11 +45,11 @@ def evaluate_satisfaction(step_input: StepInput, session_state: Dict[str, Any]) 
             evaluator_msg += f"Last workflow response: {last_workflow_response}\n\n"
         evaluator_msg += f"Current user message: {user_msg}\n"
 
-        response = satisfaction_evaluation_agent.run(
-            evaluator_msg, session_state={"user_mood": user_mood}
+        turn = satisfaction_evaluation_agent.run(
+            AgentInput(text=evaluator_msg, session_state={"user_mood": user_mood})
         )
-        if response and response.content:
-            effectiveness = response.content.model_dump()
+        if turn and turn.structured:
+            effectiveness = turn.structured
     except Exception as e:
         log_error(f"evaluate_satisfaction: agent failed: {e}")
 

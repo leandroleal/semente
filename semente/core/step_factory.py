@@ -1,8 +1,8 @@
 from typing import Optional, Dict, Any
 
-from agno.agent import Agent, RunOutput
-from agno.utils.log import log_error, log_debug
+from semente.backends.base import AgentInput
 from semente.core.orchestrator import StepInput, StepOutput, Step
+from semente.logging import log_error, log_debug
 
 from semente.schemas.input_manager import InputManager
 
@@ -68,19 +68,19 @@ def _input_pre_processing(
 
 
 def agent_executor_factory(
-    agent: Agent,
+    agent,
     include_summary: bool = True,
     num_runs: Optional[int] = None,
 ):
     """Create a step executor that pre-processes input before running an agent.
 
     The executor assembles the input string via ``_input_pre_processing``
-    (which prepends summary and history context), then runs the agent with
-    the full session state so that agents with dynamic instructions can
+    (which prepends summary and history context), then runs the backend agent
+    with the full session state so that agents with dynamic instructions can
     access up-to-date context.
 
     Args:
-        agent: The Agent instance to run.
+        agent: The backend ``Agent`` (port protocol) to run.
         summary: Whether to include the running summary in the input.
         num_runs: Override for how many history runs to include.
 
@@ -99,32 +99,28 @@ def agent_executor_factory(
         try:
             user_id = step_input.workflow_session.user_id
 
-            response: RunOutput = agent.run(
-                final_input,
-                user_id=user_id,
-                session_state=session_state,
+            turn = agent.run(
+                AgentInput(
+                    text=final_input,
+                    images=step_input.images or None,
+                    audio=step_input.audio or None,
+                    session_state=session_state,
+                    user_id=user_id,
+                )
             )
         except Exception as exc:
-            log_error(f"{agent.name} failed: {exc}")
+            log_error(f"agent failed: {exc}")
             return StepOutput(
                 content="Desculpa, houve um erro durante a execução. Tente novamente mais tarde!"
             )
-
-        if response.status == "ERROR":
-            log_error(f"{agent.name} failed.")
-            return StepOutput(
-                content="Desculpa, houve um erro durante a execução. Tente novamente mais tarde!"
-            )
-
-        content = response.content if response.content else ""
 
         return StepOutput(
-            content=content,
-            images=response.images if response.images else None,
-            videos=response.videos if response.videos else None,
-            audio=response.audio if response.audio else None,
-            files=response.files if response.files else None,
-            metrics=response.metrics if response.metrics else None,
+            content=turn.content or "",
+            images=turn.images,
+            videos=turn.videos,
+            audio=turn.audio,
+            files=turn.files,
+            metrics=turn.metrics,
         )
 
     return _agent_executor

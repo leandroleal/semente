@@ -1,12 +1,11 @@
-from agno.agent import Agent
-
-from semente.configs.config import config
+from semente.backends.base import AgentSpec
+from semente.backends.registry import get_backend
 from semente.configs.prompts import get_agent_config
 from semente.tools.onboarding_tools import accept_terms_and_conditions
 
 
-def build_welcoming_agent(tts_enabled: bool = True) -> Agent:
-    """Build the welcoming agent.
+def build_welcoming_agent(tts_enabled: bool = True):
+    """Build the welcoming agent via the selected engine backend.
 
     ``tts_enabled`` controls whether the TTS tool is attached (manifest
     ``features.tts``). Prompts are loaded lazily so the language/prompts dir
@@ -20,15 +19,13 @@ def build_welcoming_agent(tts_enabled: bool = True) -> Agent:
 
         tools.append(generate_speech)
 
-    return Agent(
-        name=welcoming_config["name"],
-        role=welcoming_config["role"],
-        description=welcoming_config["description"],
-        instructions=welcoming_config["instructions"].strip().format(
-            terms_text=welcoming_config["terms_text"].strip()
-        ),
-        tools=tools,
-        model=config.model,
-        fallback_models=[config.fallback_model],
-        debug_mode=config.DEBUG_MODE,
+    instructions_text = welcoming_config["instructions"].strip().format(
+        terms_text=welcoming_config["terms_text"].strip()
     )
+
+    spec = AgentSpec(
+        name=welcoming_config["name"],
+        instructions=lambda run_context: instructions_text,
+        tools=tools,
+    )
+    return get_backend().build_agent(spec)

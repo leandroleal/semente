@@ -1,41 +1,20 @@
 """Agent factory — builds the single agent from a DomainSpec.
 
-The neutral shell: model, knowledge, skills, and the generic instruction
-builder (persona + history/summary context blocks). Domain-specific dynamic
-instructions and tool selection are supplied by the domain via
-``DomainSpec.instructions`` and ``DomainSpec.tools`` (a list or a callable
-``(run_context) -> list``).
+The neutral shell: the generic instruction builder (persona + history/summary
+context blocks) and the engine-port call. Domain-specific dynamic instructions
+and tool selection are supplied by the domain via ``DomainSpec.instructions``
+and ``DomainSpec.tools``. The actual agent is built by the selected engine
+backend (see ``semente.backends``).
 """
 
 import textwrap
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
-from agno.agent import Agent
-from agno.run import RunContext
-
-from semente.configs.config import config
+from semente.backends.base import AgentSpec, ModelSpec
+from semente.backends.registry import get_backend
 from semente.configs.prompts import get_agent_config
 from semente.domain import DomainSpec
 from semente.schemas.user_persona import UserPersona
-
-
-def _resolve_model(manifest) -> Any:
-    """Resolve the primary model: manifest override wins, else env config."""
-    primary = (manifest.models or {}).get("primary") if manifest else None
-    if primary:
-        return config.build_model(
-            primary.get("provider", config.PRIMARY_MODEL_PROVIDER),
-            primary.get("id", config.PRIMARY_MODEL_ID),
-        )
-    return config.model
-
-
-def _resolve_fallback(manifest) -> Any:
-    """Resolve the fallback model: manifest override wins, else env config."""
-    fb = (manifest.models or {}).get("fallback") if manifest else None
-    if fb:
-        return config.build_model(fb.get("provider"), fb.get("id"))
-    return config.fallback_model
 
 
 def persona_text(session_state) -> str:
@@ -69,11 +48,11 @@ def context_blocks(session_state) -> str:
     return "\n".join(parts)
 
 
-def _default_instructions(domain_spec: DomainSpec) -> Callable[[RunContext], str]:
+def _default_instructions(domain_spec: DomainSpec) -> Callable[[Any], str]:
     """Generic instruction builder: persona + context blocks + static default text."""
     agent_config = get_agent_config(domain_spec.agent_config)
 
-    def instructions(run_context: RunContext) -> str:
+    def instructions(run_context) -> str:
         session_state = run_context.session_state or {}
         ctx_blocks = context_blocks(session_state)
         persona = persona_text(session_state)
@@ -91,36 +70,38 @@ def _default_instructions(domain_spec: DomainSpec) -> Callable[[RunContext], str
     return instructions
 
 
-def build_agent(domain_spec: DomainSpec, manifest: Any = None) -> Agent:
-    """Assemble the single agent for a domain.
+def _resolve_model_spec(manifest) -> ModelSpec | None:
+    """Manifest model override, or None (backend falls back to env config)."""
+    primary = (manifest.models or {}).get("primary") if manifest else None
+    if primary:
+        return ModelSpec(
+            provider=primary.get("provider", "google"),
+            model_id=primary.get("id", "gemini-3.5-flash-lite"),
+        )
+    return None
+
+
+def build_agent(domain_spec: DomainSpec, manifest: Any = None):
+    """Assemble the single agent for a domain via the selected engine backend.
 
     Args:
         domain_spec: The domain's tools/knowledge/skills/instructions.
-        manifest: Optional :class:`semente.manifest.Manifest` for model override.
+        manifest: Optional :class:`semente.manifest.Manifest` for model/engine override.
 
     Returns:
-        An Agno ``Agent`` ready to be wired into the workflow.
+        A backend ``Agent`` (port protocol) ready to be wired into the workflow.
     """
     agent_config = get_agent_config(domain_spec.agent_config)
 
-    tools = domain_spec.tools
-    instructions = domain_spec.instructions or _default_instructions(domain_spec)
-
-    return Agent(
+    spec = AgentSpec(
         name=agent_config["name"],
-        tools=tools,
-        markdown=True,
-        use_instruction_tags=False,
-        instructions=instructions,
-        cache_callables=False,
+        instructions=domain_spec.instructions or _default_instructions(domain_spec),
+        tools=domain_spec.tools,
         knowledge=domain_spec.knowledge,
-        search_knowledge=domain_spec.knowledge is not None,
-        add_search_knowledge_instructions=domain_spec.knowledge is not None,
         skills=domain_spec.skills,
-        model=_resolve_model(manifest),
-        fallback_models=[_resolve_fallback(manifest)],
-        add_datetime_to_context=True,
-        # ponytail: hardcoded TZ; make configurable (env/manifest) when a non-BR app needs it.
-        timezone_identifier="America/Sao_Paulo",
-        debug_mode=config.DEBUG_MODE,
+        model=_resolve_model_spec(manifest),
     )
+
+    engine = getattr(manifest, "engine", None) if manifest else None
+    backend = get_backend(engine)
+    return backend.build_agent(spec)

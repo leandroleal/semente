@@ -32,14 +32,17 @@ class AgentSpec:
     output_schema: type[BaseModel] | None = None
     model: ModelSpec | None = None
     multimodal_in: bool = False
+    knowledge: Any = None
+    skills: Any = None
 
 
 @dataclass
 class AgentInput:
     text: str
-    images: list[bytes] | None = None
-    audio: list[bytes] | None = None
-    context: Context | None = None
+    images: list | None = None
+    audio: list | None = None
+    session_state: dict | None = None
+    user_id: str | None = None
 
 
 @dataclass
@@ -47,6 +50,11 @@ class AgentTurn:
     content: str
     structured: dict | None = None
     usage: dict | None = None
+    images: list | None = None
+    videos: list | None = None
+    audio: list | None = None
+    files: list | None = None
+    metrics: dict | None = None
 
 
 class Agent(Protocol):

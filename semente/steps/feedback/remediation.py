@@ -11,8 +11,9 @@ External interface:
 
 from typing import Any, Dict
 
-from agno.utils.log import log_error
+from semente.logging import log_error
 from semente.core.orchestrator import Step
+from semente.backends.base import AgentInput
 from semente.core.orchestrator import StepInput, StepOutput
 
 from semente.agents.feedback_agent import remediation_agent
@@ -52,12 +53,12 @@ def _merge_output_executor(step_input: StepInput, session_state: Dict[str, Any])
 
     if _should_apply_remediation(session_state):
         try:
-            response = remediation_agent.run(current_content)
+            turn = remediation_agent.run(AgentInput(text=current_content))
 
             if is_audio:
-                audio_item.transcript = response.content
+                audio_item.transcript = turn.content
             else:
-                router_output.content = response.content
+                router_output.content = turn.content
 
         except Exception as exc:
             log_error(f"_merge_output_executor: remediation agent failed - {exc}")
