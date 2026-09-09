@@ -5,6 +5,7 @@ tool-hook bridge (A-H), and knowledge tool injection (A-K).
 """
 
 from semente.backends.adk import _adapt_tool, _new_media_bag
+from semente.knowledge import build_search_tool
 from semente.tools import tool
 from semente.tools.types import Image, ToolResult
 
@@ -85,10 +86,35 @@ def test_hook_schema_strips_run_context():
     assert params == ["feature_id"]
 
 
+def test_knowledge_search_tool_formats_docs():
+    class FakeDoc:
+        def __init__(self, name, content):
+            self.name = name
+            self.content = content
+
+        def to_dict(self):
+            return {"name": self.name, "content": self.content}
+
+    class FakeKB:
+        def search(self, query, **kw):
+            return [FakeDoc("d1", "cadastro info")]
+
+    tool_fn = build_search_tool(FakeKB())
+    out = tool_fn("como funciona o cadastro?")
+    assert "cadastro info" in out
+
+    class EmptyKB:
+        def search(self, query, **kw):
+            return []
+
+    assert build_search_tool(EmptyKB())("x") == "No documents found"
+
+
 if __name__ == "__main__":
     test_media_bag_stashes_media_and_returns_text()
     test_media_bag_passes_plain_strings_through()
     test_hook_short_circuits_without_property()
     test_hook_continues_chain_with_property()
     test_hook_schema_strips_run_context()
+    test_knowledge_search_tool_formats_docs()
     print("ADK backend tests OK")

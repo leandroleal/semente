@@ -15,6 +15,7 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
+import yaml
 from google.genai.types import HttpOptions
 from sqlalchemy import create_engine, select, text
 
@@ -32,6 +33,7 @@ from agno.vectordb.pgvector import PgVector  # noqa: F401
 
 __all__ = [
     "build_knowledge",
+    "build_search_tool",
     "synchronize",
     "RecursiveChunking",
     "GeminiEmbedder",
@@ -40,6 +42,46 @@ __all__ = [
     "Distance",
     "PgVector",
 ]
+
+def build_search_tool(kb: Knowledge):
+    """Build a Semente-native ``search_knowledge_base`` tool over a Knowledge instance.
+
+    Returns a plain function (engine-agnostic): the ADK and bare backends adapt
+    it directly; Agno keeps its native auto-injected tool. Mirrors agno's
+    ``create_knowledge_search_tool`` formatting (YAML dump of documents).
+    """
+
+    def search_knowledge_base(query: str) -> str:
+        """Search the knowledge base for information about a query.
+
+        Args:
+            query: The query to search for.
+
+        Returns:
+            str: The relevant documents from the knowledge base.
+        """
+        try:
+            docs = kb.search(query)
+        except Exception as exc:
+            return f"Error searching knowledge base: {type(exc).__name__}"
+        if not docs:
+            return "No documents found"
+        return yaml.dump(
+            [d.to_dict() if hasattr(d, "to_dict") else d for d in docs],
+            default_flow_style=False,
+        )
+
+    return search_knowledge_base
+
+
+# Mirrors agno Knowledge._SEARCH_KNOWLEDGE_INSTRUCTIONS (the block agno injects
+# when add_search_knowledge_instructions=True).
+SEARCH_KNOWLEDGE_INSTRUCTIONS = (
+    "You have a knowledge base you can search using the search_knowledge_base tool. "
+    "Search before answering questions—don't assume you know the answer. "
+    "For ambiguous questions, search first rather than asking for clarification."
+)
+
 
 # Advisory lock keys (stable, per-purpose) for multi-worker bootstrap/indexing.
 _BOOTSTRAP_LOCK_KEY = (0x70675F31, 0x6B625F31)

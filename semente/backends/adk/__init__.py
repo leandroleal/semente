@@ -15,7 +15,7 @@ Key adaptations (see MULTI_ENGINE.md §4.2):
   agno toolkits (e.g. Calculator) are expanded.
 - **Multimodal input**: Semente media -> ``genai`` content parts.
 
-Known degradations (documented): knowledge/skills are not wired.
+Known degradations (documented): skills are not wired.
 """
 
 from __future__ import annotations
@@ -226,15 +226,30 @@ class AdkAgentAdapter:
             instruction = lambda ctx: str(instruction)  # noqa: E731
 
         def instruction_provider(ctx):
-            return instruction(_ToolContextAdapter(ctx))
+            text = instruction(_ToolContextAdapter(ctx))
+            if self.spec.knowledge is not None:
+                from semente.knowledge import SEARCH_KNOWLEDGE_INSTRUCTIONS
+
+                text += (
+                    "\n\n<knowledge_base>\n"
+                    + SEARCH_KNOWLEDGE_INSTRUCTIONS
+                    + "\n</knowledge_base>"
+                )
+            return text
 
         model = self.spec.model.model_id if self.spec.model else "gemini-2.5-flash"
+
+        tools = self._resolve_tools(state, media_bag)
+        if self.spec.knowledge is not None:
+            from semente.knowledge import build_search_tool
+
+            tools.append(_adapt_tool(build_search_tool(self.spec.knowledge), media_bag))
 
         agent = LlmAgent(
             model=model,
             name=_sanitize_name(self.spec.name),
             instruction=instruction_provider,
-            tools=self._resolve_tools(state, media_bag),
+            tools=tools,
             output_schema=self.spec.output_schema,
         )
 
