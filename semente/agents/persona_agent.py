@@ -1,4 +1,4 @@
-from agno.run import RunContext
+from semente.context import Context
 
 from semente.backends.base import AgentSpec
 from semente.backends.registry import get_backend
@@ -9,7 +9,7 @@ from semente.schemas.user_persona import PersonaUpdate, UserPersona
 _persona_config = get_agent_config("persona_agent")
 
 
-def get_instructions(run_context: RunContext) -> str:
+def get_instructions(run_context: Context) -> str:
     session_state = run_context.session_state
 
     user_persona_dict = session_state.get("user_persona", {})

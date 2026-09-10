@@ -98,6 +98,40 @@ def _resolve_fallback_model_spec(manifest) -> ModelSpec | None:
     return None
 
 
+def _with_skills(spec: AgentSpec) -> AgentSpec:
+    """Inject skills as a prompt snippet + access tools (engine-agnostic).
+
+    Replaces agno's Skills system: every backend gets the same
+    ``<skills_system>`` instructions and the three skill access tools, so
+    skills work identically on agno, ADK, and bare.
+    """
+    skills = spec.skills
+    if skills is None:
+        return spec
+
+    from dataclasses import replace
+
+    snippet = skills.get_system_prompt_snippet()
+    skill_tools = skills.get_tools()
+
+    orig_instructions = spec.instructions
+
+    def instructions(ctx):
+        base = orig_instructions(ctx) if callable(orig_instructions) else str(orig_instructions)
+        return base + "\n\n" + snippet
+
+    orig_tools = spec.tools
+    if callable(orig_tools) and not isinstance(orig_tools, list):
+
+        def tools(ctx):
+            return list(orig_tools(ctx)) + skill_tools
+
+    else:
+        tools = list(orig_tools or []) + skill_tools
+
+    return replace(spec, instructions=instructions, tools=tools)
+
+
 def build_agent(domain_spec: DomainSpec, manifest: Any = None):
     """Assemble the single agent for a domain via the selected engine backend.
 
@@ -118,6 +152,7 @@ def build_agent(domain_spec: DomainSpec, manifest: Any = None):
         skills=domain_spec.skills,
         model=_resolve_model_spec(manifest),
     )
+    spec = _with_skills(spec)
 
     engine = getattr(manifest, "engine", None) if manifest else None
     backend = get_backend(engine)

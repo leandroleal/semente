@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Union
+from typing import Any, Callable, Optional, Union
 
 
 @dataclass
@@ -79,3 +79,21 @@ class ToolResult:
     videos: Optional[list[Video]] = None
     audios: Optional[list[Audio]] = None
     files: Optional[list[File]] = None
+
+
+@dataclass
+class Tool:
+    """A Semente-native tool: the raw function plus its declaration metadata.
+
+    Engine-neutral — backends convert this to their own tool type (agno
+    ``Function``, ADK function, litellm schema). ``__call__`` delegates to the
+    raw function so a decorated tool can still be invoked directly in tests.
+    """
+
+    name: str
+    func: Callable
+    description: str = ""
+    tool_hooks: list[Callable] = field(default_factory=list)
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        return self.func(*args, **kwargs)

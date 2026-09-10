@@ -1,15 +1,15 @@
 import json
 from typing import Callable, Dict, Any
-from agno.run import RunContext
 from datetime import datetime, timedelta
 
+from semente.context import Context
 from semente.configs.prompts import get_hook_texts
 
 
 _hook_texts = get_hook_texts("tool_hooks")
 
 
-def validate_selected_property_hook(run_context: RunContext, function_call: Callable, arguments: Dict[str, Any]) -> Any:
+def validate_selected_property_hook(run_context: Context, function_call: Callable, arguments: Dict[str, Any]) -> Any:
     """
     Hook de validação para garantir que há uma propriedade armazenada no sistema.
     """

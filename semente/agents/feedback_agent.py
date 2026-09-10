@@ -1,4 +1,4 @@
-from agno.run import RunContext
+from semente.context import Context
 
 from semente.backends.base import AgentSpec
 from semente.backends.registry import get_backend
@@ -18,7 +18,7 @@ remediation_agent = get_backend().build_agent(
 )
 
 
-def get_satisfaction_instructions(run_context: RunContext) -> str:
+def get_satisfaction_instructions(run_context: Context) -> str:
     session_state = run_context.session_state or {}
     user_mood_dict = session_state.get("user_mood", None)
 

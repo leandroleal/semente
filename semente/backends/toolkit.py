@@ -12,7 +12,7 @@ import inspect
 import json
 from typing import Any
 
-from semente.tools.types import ToolResult
+from semente.tools.types import Tool, ToolResult
 
 
 class StateContext:
@@ -25,6 +25,9 @@ class StateContext:
 
 
 def unwrap(func):
+    # Native Tool -> raw func.
+    if isinstance(func, Tool):
+        return func.func
     # agno Function wraps the entrypoint; semente.tool wraps the original func.
     if hasattr(func, "entrypoint"):
         func = func.entrypoint
@@ -118,23 +121,30 @@ def run_tool(tool, args: dict, ctx, media_bag: dict) -> str:
 
 def tool_schema(tool) -> dict:
     """OpenAI-style function schema (name/description/parameters) for one tool."""
-    if hasattr(tool, "to_dict"):
-        d = tool.to_dict()
-        if isinstance(d, dict):
-            return d
-    func = unwrap(tool)
+    if isinstance(tool, Tool):
+        func = tool.func
+        name = tool.name
+        description = tool.description
+    else:
+        if hasattr(tool, "to_dict"):
+            d = tool.to_dict()
+            if isinstance(d, dict):
+                return d
+        func = unwrap(tool)
+        name = getattr(func, "__name__", "tool")
+        description = (inspect.getdoc(func) or "").strip()
     sig = inspect.signature(func)
     properties: dict = {}
     required: list = []
-    for name, p in sig.parameters.items():
-        if name == "run_context":
+    for pname, p in sig.parameters.items():
+        if pname == "run_context":
             continue
-        properties[name] = {"type": _py_type_to_json(p.annotation)}
+        properties[pname] = {"type": _py_type_to_json(p.annotation)}
         if p.default is inspect.Parameter.empty:
-            required.append(name)
+            required.append(pname)
     return {
-        "name": getattr(func, "__name__", "tool"),
-        "description": (inspect.getdoc(func) or "").strip(),
+        "name": name,
+        "description": description,
         "parameters": {"type": "object", "properties": properties, "required": required},
     }
 
