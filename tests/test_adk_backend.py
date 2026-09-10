@@ -79,12 +79,14 @@ def test_hook_continues_chain_with_property():
     assert len(bag["images"]) == 1
 
 
-def test_hook_schema_strips_run_context():
+def test_hook_schema_renames_run_context():
+    """The visible signature renames run_context -> tool_context (which ADK
+    strips from the LLM declaration itself and injects at invocation)."""
     import inspect
 
     adapted = _adapt_tool(_make_gated_tool(), new_media_bag())
     params = list(inspect.signature(adapted).parameters)
-    assert params == ["feature_id"]
+    assert params == ["tool_context", "feature_id"]
 
 
 def test_knowledge_search_tool_formats_docs():
@@ -116,6 +118,6 @@ if __name__ == "__main__":
     test_media_bag_passes_plain_strings_through()
     test_hook_short_circuits_without_property()
     test_hook_continues_chain_with_property()
-    test_hook_schema_strips_run_context()
+    test_hook_schema_renames_run_context()
     test_knowledge_search_tool_formats_docs()
     print("ADK backend tests OK")

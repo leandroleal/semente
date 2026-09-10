@@ -59,11 +59,6 @@ def _adapt_tool(tool, media_bag: dict):
     has_run_context = "run_context" in sig.parameters
     hooks = getattr(tool, "tool_hooks", None) or []
 
-    # Schema the LLM sees: the original signature minus run_context.
-    clean_sig = sig.replace(
-        parameters=[p for p in sig.parameters.values() if p.name != "run_context"]
-    )
-
     chain = build_hook_chain(func, hooks, has_run_context)
     needs_ctx = has_run_context or bool(hooks)
 
@@ -71,19 +66,34 @@ def _adapt_tool(tool, media_bag: dict):
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            call_args = bind_args(clean_sig, args, kwargs)
+            call_args = bind_args(sig.replace(parameters=list(sig.parameters.values())), args, kwargs)
             return result_to_str(chain(call_args, None), media_bag)
 
+        wrapper.__signature__ = sig
+
     else:
+        # Rename run_context -> tool_context in the visible signature: ADK
+        # strips the context param from the declaration itself (_ignore_params)
+        # and injects the real ToolContext under that name at invocation time
+        # (_prepare_invocation_args checks the signature — a param removed
+        # from __signature__ would never receive the context).
+        clean_sig = sig.replace(
+            parameters=[
+                p.replace(name="tool_context") if p.name == "run_context" else p
+                for p in sig.parameters.values()
+            ]
+        )
 
         @functools.wraps(func)
-        def wrapper(*args, tool_context=None, **kwargs):
-            ctx = _ToolContextAdapter(tool_context) if tool_context is not None else StateContext({})
+        def wrapper(*args, **kwargs):
             call_args = bind_args(clean_sig, args, kwargs)
+            tc = call_args.pop("tool_context", None)
+            ctx = _ToolContextAdapter(tc) if tc is not None else StateContext({})
             return result_to_str(chain(call_args, ctx), media_bag)
 
-    # ADK builds the tool schema from the signature; make it the clean one.
-    wrapper.__signature__ = clean_sig
+        # ADK builds the tool schema from the signature; make it the clean one.
+        wrapper.__signature__ = clean_sig
+
     return wrapper
 
 
@@ -174,10 +184,12 @@ class AdkAgentAdapter:
 
         session_service = InMemorySessionService()
         # Seed the ADK session from Semente's state (same dict, by reference).
-        session = session_service.create_session(
-            app_name=self.app_name,
-            user_id=input.user_id or "default",
-            state=dict(state),
+        session = _sync(
+            session_service.create_session(
+                app_name=self.app_name,
+                user_id=input.user_id or "default",
+                state=dict(state),
+            )
         )
         runner = Runner(agent=agent, app_name=self.app_name, session_service=session_service)
 
@@ -203,8 +215,12 @@ class AdkAgentAdapter:
 
         # Sync ADK's (possibly tool-mutated) state back into Semente's dict.
         try:
-            updated = session_service.get_session(
-                app_name=self.app_name, user_id=input.user_id or "default", session_id=session.id
+            updated = _sync(
+                session_service.get_session(
+                    app_name=self.app_name,
+                    user_id=input.user_id or "default",
+                    session_id=session.id,
+                )
             )
             if updated is not None and getattr(updated, "state", None):
                 state.clear()
@@ -232,6 +248,18 @@ class AdkAgentAdapter:
 def _sanitize_name(name: str) -> str:
     """ADK node names must be valid Python identifiers."""
     return re.sub(r"\W+", "_", name).strip("_") or "agent"
+
+
+def _sync(coro_or_val):
+    """ADK >= 2.8 session service methods are async; older ones are sync.
+    Works with either (the workflow runs synchronously, so we drive the
+    coroutine on a fresh loop)."""
+    import asyncio
+    import inspect
+
+    if inspect.iscoroutine(coro_or_val):
+        return asyncio.run(coro_or_val)
+    return coro_or_val
 
 
 class AdkBackend(EngineBackend):
