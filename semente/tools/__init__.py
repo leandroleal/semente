@@ -52,6 +52,15 @@ def tool(description: str | None = None, tool_hooks: list | None = None, **kwarg
 
             target = wrapper
 
+        # Tools taking run_context are annotated with the Context Protocol;
+        # pydantic validate_call cannot build an isinstance validator for a
+        # Protocol (agno logs a SchemaError warning per tool on every build).
+        # Mark with agno's own skip flag — same de-facto behavior (validation
+        # was failing open), minus the noise. Also correct: validating
+        # run_context nominally would reject the engine's RunContext instance.
+        if "run_context" in inspect.signature(func).parameters:
+            target._wrapped_for_validation = True
+
         return agno_tool(description=description, tool_hooks=tool_hooks, **kwargs)(target)
 
     return decorator

@@ -7,6 +7,25 @@ from semente.logging import log_error, log_debug
 from semente.schemas.input_manager import InputManager
 
 
+_INPUT_STEP_NAME = "Input Step"
+
+
+def _user_text(step_input: StepInput) -> str:
+    """The consolidated user text for THIS turn (post transcription/description).
+
+    Sibling Parallel branches (summarization, feedback) insert their outputs
+    into previous_step_outputs BEFORE the agent branch runs, so "the last
+    output" is NOT the user's text — read the input step's output by name and
+    fall back to the raw input. (Previously the agent received an empty
+    <input> on every post-onboarding turn and only saw the question one turn
+    later via history_context — the "must send twice" bug.)
+    """
+    out = step_input.get_step_output(_INPUT_STEP_NAME)
+    if out is not None and out.content:
+        return out.content
+    return step_input.get_input_as_string() or ""
+
+
 def _input_pre_processing(
     step_input: StepInput,
     session_state: Dict[str, Any],
@@ -60,7 +79,7 @@ def _input_pre_processing(
 
     parts: list[str] = []
 
-    text = list(step_input.previous_step_outputs.values())[-1].content or ""
+    text = _user_text(step_input)
     if text:
         parts.append(f"<input>\n{text}\n</input>")
 
