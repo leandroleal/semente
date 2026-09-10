@@ -1,17 +1,49 @@
 import io
 import mimetypes
 import os
+import wave
 from dataclasses import dataclass
 from typing import Any, List, Optional, Tuple, Union
 
 import httpx
 
-from agno.utils.audio import pcm_to_wav_bytes
-from agno.utils.log import log_error, log_info, log_warning
-from agno.utils.media import get_image_type
+from semente.logging import log_error, log_info, log_warning
 
 _BASE_URL = "https://graph.facebook.com"
 _API_VERSION = "v22.0"
+
+
+def _pcm_to_wav_bytes(
+    pcm_data: bytes,
+    channels: Optional[int] = None,
+    rate: Optional[int] = None,
+    sample_width: Optional[int] = None,
+) -> bytes:
+    """Wrap raw PCM in a WAV container (inlined from agno.utils.audio)."""
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wf:
+        wf.setnchannels(channels or 1)
+        wf.setsampwidth(sample_width or 2)
+        wf.setframerate(rate or 24000)
+        wf.writeframes(pcm_data)
+    return buf.getvalue()
+
+
+def _get_image_type(data: bytes) -> Optional[str]:
+    """Image format from magic bytes (inlined from agno.utils.media)."""
+    if len(data) < 12:
+        return None
+    if data[0:8] == b"\x89\x50\x4e\x47\x0d\x0a\x1a\x0a":
+        return "png"
+    if data[0:4] == b"GIF8" and data[5:6] == b"a":
+        return "gif"
+    if data[0:3] == b"\xff\xd8\xff":
+        return "jpeg"
+    if data[4:8] == b"ftyp":
+        return "heic"
+    if data[0:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "webp"
+    return None
 
 
 @dataclass
@@ -190,7 +222,7 @@ _MEDIA_LABELS = ("image", "video", "audio", "document")
 
 
 async def download_event_media_async(parsed: "MessageContent", config: WhatsAppConfig) -> Tuple[dict, List[str]]:
-    from agno.media import Audio, File, Image, Video
+    from semente.tools.types import Audio, File, Image, Video
 
     run_kwargs: dict = {}
     skipped: List[str] = []
@@ -386,7 +418,7 @@ async def upload_and_send_media_async(
 
         if media_type == "image":
             # WhatsApp only accepts image/jpeg and image/png
-            detected = get_image_type(raw_bytes)
+            detected = _get_image_type(raw_bytes)
             if detected in ("jpeg", "png"):
                 fmt = detected
             else:
@@ -410,7 +442,7 @@ async def upload_and_send_media_async(
                 filename = f"audio.{fmt}"
             else:
                 # Raw PCM (e.g. Gemini TTS "audio/L16;rate=24000") — wrap as WAV
-                raw_bytes = pcm_to_wav_bytes(raw_bytes, channels=item.channels, rate=item.sample_rate)
+                raw_bytes = _pcm_to_wav_bytes(raw_bytes, channels=item.channels, rate=item.sample_rate)
                 mime_type, filename = "audio/wav", "audio.wav"
         else:
             mime_type, filename = "application/octet-stream", media_type

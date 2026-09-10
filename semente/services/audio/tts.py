@@ -6,8 +6,8 @@ import wave
 from pathlib import Path
 from google import genai
 
-from agno.media import Audio
-from agno.utils.log import log_debug, log_error
+from semente.logging import log_debug, log_error
+from semente.tools.types import Audio
 
 
 def generate_speech(text: str, user_id: str = "default") -> Audio:

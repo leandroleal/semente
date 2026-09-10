@@ -116,15 +116,15 @@ def _with_skills(spec: AgentSpec) -> AgentSpec:
 
     orig_instructions = spec.instructions
 
-    def instructions(ctx):
-        base = orig_instructions(ctx) if callable(orig_instructions) else str(orig_instructions)
+    def instructions(run_context=None):
+        base = orig_instructions(run_context) if callable(orig_instructions) else str(orig_instructions)
         return base + "\n\n" + snippet
 
     orig_tools = spec.tools
     if callable(orig_tools) and not isinstance(orig_tools, list):
 
-        def tools(ctx):
-            return list(orig_tools(ctx)) + skill_tools
+        def tools(run_context=None):
+            return list(orig_tools(run_context)) + skill_tools
 
     else:
         tools = list(orig_tools or []) + skill_tools

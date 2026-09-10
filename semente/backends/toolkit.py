@@ -139,7 +139,7 @@ def tool_schema(tool) -> dict:
     for pname, p in sig.parameters.items():
         if pname == "run_context":
             continue
-        properties[pname] = {"type": _py_type_to_json(p.annotation)}
+        properties[pname] = _py_type_to_json(p.annotation)
         if p.default is inspect.Parameter.empty:
             required.append(pname)
     return {
@@ -149,20 +149,23 @@ def tool_schema(tool) -> dict:
     }
 
 
-def _py_type_to_json(annotation) -> str:
+def _py_type_to_json(annotation) -> dict:
+    """Map a Python type annotation to a JSON-schema fragment (dict)."""
     if annotation is inspect.Parameter.empty:
-        return "string"
+        return {"type": "string"}
     origin = getattr(annotation, "__origin__", None)
     if annotation is str or origin is str:
-        return "string"
+        return {"type": "string"}
     if annotation is int or origin is int:
-        return "integer"
+        return {"type": "integer"}
     if annotation is float or origin is float:
-        return "number"
+        return {"type": "number"}
     if annotation is bool or origin is bool:
-        return "boolean"
+        return {"type": "boolean"}
     if annotation is list or origin is list:
-        return "array"
+        args = getattr(annotation, "__args__", None)
+        item = args[0] if args else str
+        return {"type": "array", "items": _py_type_to_json(item)}
     if annotation is dict or origin is dict:
-        return "object"
-    return "string"
+        return {"type": "object"}
+    return {"type": "string"}

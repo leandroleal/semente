@@ -23,7 +23,7 @@ from functools import lru_cache
 from pathlib import Path
 
 import yaml
-from agno.utils.log import log_warning
+from semente.logging import log_warning
 
 DEFAULTS_DIR = Path(__file__).resolve().parent / "prompts" / "defaults"
 

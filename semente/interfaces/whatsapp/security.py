@@ -5,7 +5,7 @@ from typing import Optional
 
 from fastapi import HTTPException
 
-from agno.utils.log import log_warning
+from semente.logging import log_warning
 
 
 def is_development_mode() -> bool:

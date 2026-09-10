@@ -4,19 +4,11 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, Optional
 
-from agno.utils.log import agent_logger, team_logger, workflow_logger
-
 LOG_DIR = Path.cwd() / "logs"
 
 _ERROR_FORMATTER = logging.Formatter(
     fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
-)
-
-_AGNO_LOGGERS: tuple[logging.Logger, ...] = (
-    agent_logger,
-    team_logger,
-    workflow_logger,
 )
 
 
@@ -45,7 +37,7 @@ def _build_error_file_handler() -> Optional[RotatingFileHandler]:
 
 
 def setup_logging(config: Any) -> None:
-    """Configure agno's loggers for the Pasto Legal app.
+    """Configure the Semente logger (and agno's, when installed).
 
     - Errors -> /app/logs/errors.log (rotating 5MB x 3) in every environment.
     - Info -> terminal in every environment.
@@ -57,17 +49,31 @@ def setup_logging(config: Any) -> None:
     error_handler = _build_error_file_handler()
     error_path = getattr(error_handler, "baseFilename", None)
 
-    for logger in _AGNO_LOGGERS:
-        # Attach the error file handler once (idempotent across re-imports).
+    # Semente-level logger (stdlib).
+    semente_logger = logging.getLogger("semente")
+    semente_logger.setLevel(console_level)
+    if not any(isinstance(h, logging.StreamHandler) for h in semente_logger.handlers):
+        console = logging.StreamHandler()
+        console.setLevel(console_level)
+        semente_logger.addHandler(console)
+    if error_handler is not None and not any(
+        getattr(h, "baseFilename", None) == error_path for h in semente_logger.handlers
+    ):
+        semente_logger.addHandler(error_handler)
+
+    # Agno's loggers — only when the agno backend is installed (bare must not
+    # require agno).
+    try:
+        from agno.utils.log import agent_logger, team_logger, workflow_logger
+    except ImportError:
+        return
+
+    for logger in (agent_logger, team_logger, workflow_logger):
         if error_handler is not None and not any(
-            getattr(h, "baseFilename", None) == error_path
-            for h in logger.handlers
+            getattr(h, "baseFilename", None) == error_path for h in logger.handlers
         ):
             logger.addHandler(error_handler)
-
-        # Adjust the existing Rich console handlers' threshold.
         for handler in logger.handlers:
             if isinstance(handler, RotatingFileHandler):
                 continue
-            # Any non-file handler is treated as a console handler.
             handler.setLevel(console_level)
