@@ -8,7 +8,7 @@ name: my-app                 # app name (workflow name)
 language: pt-BR              # optional; loads prompts/<lang>/ if present
 domain_module: domain        # import path exposing `domain_spec`
 prompts_dir: domain/prompts  # optional; explicit prompts dir (overrides language)
-engine: agno                 # agno (default) | adk | bare | pi
+engine: agno                 # agno (default) | adk | bare
 channels: [streamlit]        # streamlit and/or whatsapp
 features:                    # all default to true
   tts: true                  # attach TTS tool to the welcoming agent
@@ -28,7 +28,7 @@ models:                      # optional override of env-var model config
 | `language` | `str` | `en` | Selects `prompts/<language>/` when it exists. |
 | `domain_module` | `str` | `domain` | Import path of the module exposing `domain_spec`. |
 | `prompts_dir` | `str` | — | Explicit prompts directory (relative to cwd). Overrides `language`. |
-| `engine` | `str` | `agno` | Agent engine: `agno`, `adk`, `bare`, or `pi`. See [Engines](engines.md). |
+| `engine` | `str` | `agno` | Agent engine: `agno`, `adk`, or `bare`. See [Engines](engines.md). |
 | `channels` | `list` | `[streamlit]` | `streamlit` and/or `whatsapp`. |
 | `features` | `dict` | all `true` | Feature toggles (see below). |
 | `models` | `dict` | — | Overrides the `.env` model config. |

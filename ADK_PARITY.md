@@ -94,7 +94,7 @@ manifest's `models.fallback` — currently parsed but discarded). In
 `agent_executor_factory` (the single place every engine's `run` flows
 through): try the agent; on exception or empty content, build a fallback
 agent once (lazily) and retry. This restores the behavior Pasto Legal had on
-Agno and gives ADK + pi the same guarantee.
+Agno and gives every backend the same guarantee.
 
 ### G6 — Tool-call log for the debug panel (optional)
 
@@ -166,5 +166,4 @@ A-F, A-P.
 G5 (fallback) fixes a regression on **every** engine. G1's per-run bag
 design is the thin end of the full MediaBag architecture (MULTI_ENGINE.md
 Discovery 2): once proven on ADK, unifying the Agno path onto it is a small
-step that removes the last media asymmetry between engines — and the pi
-backend inherits all of it for free.
+step that removes the last media asymmetry between engines.

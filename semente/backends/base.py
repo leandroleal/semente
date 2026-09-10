@@ -86,7 +86,7 @@ class FallbackAgent:
 
 
 class EngineBackend(ABC):
-    """A swappable agent engine (Agno, ADK, pi, …)."""
+    """A swappable agent engine (Agno, ADK, bare, …)."""
 
     name: str = "base"
 

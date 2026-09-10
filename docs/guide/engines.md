@@ -8,7 +8,7 @@ knowledge, skills, guardrails, channels — is Semente-owned and engine-free.
 
 ```yaml
 # semente.yaml
-engine: adk          # agno (default) | adk | pi | bare
+engine: adk          # agno (default) | adk | bare
 ```
 
 Or via environment variable:
@@ -32,7 +32,6 @@ The same domain, manifest, prompts, and channels run unchanged.
 | **agno** | Stable | Python, in-process | Reference implementation |
 | **adk** | Supported | Python, in-process | Google Agent Development Kit |
 | **bare** | Supported | Python, in-process | No framework — a litellm function-calling loop |
-| **pi** | Experimental | Node.js subprocess | RPC sidecar; tool bridge spike-gated |
 
 ## The contract
 
@@ -66,17 +65,17 @@ engine-agnostic (`FallbackAgent` wraps any two `Agent` instances).
 
 ## Capability matrix
 
-| Capability | agno | adk | bare | pi |
-|---|---|---|---|---|
-| Tool calling | ✓ | ✓ | ✓ | ~ (bridge) |
-| Structured output | ✓ | ✓ | ✓ | ~ (JSON + validate) |
-| Multimodal input | ✓ | ✓ | ✓ (images/audio) | ✓ (images) |
-| Media output | ✓ | ✓ | ✓ | ~ |
-| Session state in tools | ✓ | ✓ (tool_context) | ✓ (StateContext) | ~ |
-| Knowledge (KB search) | ✓ | ✓ (A-K) | ✓ (A-K) | ~ |
-| Tool hooks | ✓ | ✓ (A-H) | ✓ (A-H) | ~ |
-| Skills | ✓ | ✓ (A-S) | ✓ (A-S) | ~ |
-| Model fallback | ✓ | ✓ | ✓ | ✓ |
+| Capability | agno | adk | bare |
+|---|---|---|---|
+| Tool calling | ✓ | ✓ | ✓ |
+| Structured output | ✓ | ✓ | ✓ |
+| Multimodal input | ✓ | ✓ | ✓ (images/audio) |
+| Media output | ✓ | ✓ | ✓ |
+| Session state in tools | ✓ | ✓ (tool_context) | ✓ (StateContext) |
+| Knowledge (KB search) | ✓ | ✓ (A-K) | ✓ (A-K) |
+| Tool hooks | ✓ | ✓ (A-H) | ✓ (A-H) |
+| Skills | ✓ | ✓ (A-S) | ✓ (A-S) |
+| Model fallback | ✓ | ✓ | ✓ |
 
 ## The bare backend
 

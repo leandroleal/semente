@@ -38,14 +38,9 @@ def get_backend(engine: str | None = None) -> EngineBackend:
 
         return AdkBackend()
 
-    if name == "pi":
-        from semente.backends.pi import PiBackend
-
-        return PiBackend()
-
     if name == "bare":
         from semente.backends.bare import BareBackend
 
         return BareBackend()
 
-    raise ValueError(f"Unknown engine: {name!r} (available: agno, adk, pi, bare)")
+    raise ValueError(f"Unknown engine: {name!r} (available: agno, adk, bare)")

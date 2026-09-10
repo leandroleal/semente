@@ -30,9 +30,6 @@ coupling left outside the agno backend is the knowledge *storage* stack
 
 ## Remaining (deferred, not blocking)
 
-- **pi tool bridge** (spike-gated): TS extension generator + Python tool server
-  + shared process pool. pi currently runs one Node subprocess per agent and
-  tools don't work at all.
 - **Streaming (Phase 2)**: `Agent.stream()` protocol + orchestrator generator;
   all engines have streaming primitives.
 - **G6** (cosmetic): tool-call log on ADK/bare for the debug panel.
@@ -41,4 +38,4 @@ coupling left outside the agno backend is the knowledge *storage* stack
 
 ## Recommended order (if resumed)
 
-pi bridge → streaming → G6 → real-key smokes.
+Streaming → G6 → (real-key smokes: done for ADK + bare in Feb 2026).
