@@ -4,9 +4,12 @@ Absorbs the generic vector-KB machinery (markdown ingestion, content-hash
 sync, embedder, PgVector/ChromaDb selection) so a domain's KB module shrinks
 to a single ``build_knowledge(...)`` call.
 
-Level 2 note: the returned object is still the engine's ``Knowledge`` type for
-now; Phase G/H moves retrieval behind a Semente-owned tool so knowledge leaves
-the port entirely.
+DECISION (#3): agno is used as a vector-DB *library* here, not as the agent
+engine. The embedder, chunking, and PgVector/ChromaDb storage classes are
+re-exported for domains to build their KB; retrieval is already engine-neutral
+(``build_search_tool`` returns a plain function). Full de-agno of the storage
+stack (~3-4 days: own embedder + pgvector/chroma clients) buys nothing
+functional — deferred until a non-agno deployment actually needs it.
 """
 
 from __future__ import annotations

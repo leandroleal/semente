@@ -42,6 +42,22 @@ class EngineBackend(ABC):
 model, knowledge, and skills. `Agent.run(AgentInput) -> AgentTurn` is the
 single run primitive.
 
+## Model fallback
+
+Every engine gets a model-level safety net: configure a fallback model and
+Semente retries once with it when the primary fails (rate limits, model
+unavailability).
+
+```yaml
+# semente.yaml
+models:
+  primary: { provider: google, id: gemini-3.5-flash-lite }
+  fallback: { provider: ollama, id: gemma4:31b-cloud }
+```
+
+Or via `FALLBACK_MODEL_PROVIDER` / `FALLBACK_MODEL_ID` env vars. The retry is
+engine-agnostic (`FallbackAgent` wraps any two `Agent` instances).
+
 ## Capability matrix
 
 | Capability | agno | adk | bare | pi |
@@ -51,17 +67,28 @@ single run primitive.
 | Multimodal input | ✓ | ✓ | ✓ (images/audio) | ✓ (images) |
 | Media output | ✓ | ✓ | ✓ | ~ |
 | Session state in tools | ✓ | ✓ (tool_context) | ✓ (StateContext) | ~ |
-| Knowledge (KB search) | ✓ (native) | ✓ (A-K) | ✓ (A-K) | ~ |
-| Tool hooks | ✓ (native) | ✓ (A-H) | ✓ (A-H) | ~ |
+| Knowledge (KB search) | ✓ | ✓ (A-K) | ✓ (A-K) | ~ |
+| Tool hooks | ✓ | ✓ (A-H) | ✓ (A-H) | ~ |
+| Skills | ✓ | ✓ (A-S) | ✓ (A-S) | ~ |
+| Model fallback | ✓ | ✓ | ✓ | ✓ |
 
 ## The bare backend
 
 The `bare` engine is the end state of the engine port: once media (A-M),
-hooks (A-H) and knowledge (A-K) live in Semente, an engine only has to run
-the LLM loop. `semente/backends/bare/` does that with `litellm.completion` —
-a client, not a framework — so there is no state/session/callback model to
-fight. Model mapping: `google` → `gemini/<id>`, `ollama` → `ollama/<id>`,
-any other provider string passes through (e.g. `openai/gpt-4o`).
+hooks (A-H), knowledge (A-K) and skills (A-S) live in Semente, an engine only
+has to run the LLM loop. `semente/backends/bare/` does that with
+`litellm.completion` — a client, not a framework — so there is no
+state/session/callback model to fight. Model mapping: `google` →
+`gemini/<id>`, `ollama` → `ollama/<id>`, any other provider string passes
+through (e.g. `openai/gpt-4o`).
+
+## Knowledge: agno as a library
+
+Knowledge *retrieval* is engine-neutral (`build_search_tool` returns a plain
+function every backend adapts). The *storage* stack — embedder, chunking,
+PgVector/ChromaDb — remains agno classes, used as a vector-DB library rather
+than the agent engine. Full de-agno of storage is deferred until a non-agno
+deployment needs it (see `AGNOSTIC_PENDING.md`).
 
 ## Writing a backend
 

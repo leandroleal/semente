@@ -1,44 +1,44 @@
 # AGNOSTIC_PENDING.md — remaining work for engine-agnosticity
 
-Saved assessment (2026-09-09). Current state: tool types, orchestrator/state,
-toolkit seam (media bag, hooks, schema), ADK parity A-M/A-H/A-K, and four
-backends (agno, adk, bare, pi) are engine-agnostic. Pending, by priority:
+Updated 2026-09-09. The engine-agnostic core is now complete: native tool
+layer, native skills, native Calculator, config decoupling, TTS/media/logging
+internalized, model fallback, and the A-P parity harness. The only agno
+coupling left outside the agno backend is the knowledge *storage* stack
+(decided: agno-as-KB-library, see below).
 
-## Real couplings
+## Done (this pass)
 
-| # | Seam | File | What | Effort |
-|---|---|---|---|---|
-| 1 | `semente.tool()` wraps agno's decorator | `tools/__init__.py` | Native tool registry (description+hooks+schema, no agno) | ~1 day |
-| 2 | `config.build_model` returns agno models (module-top import) | `configs/config.py` | Even `engine: bare` transitively requires agno; move model classes to `backends/agno/`, config resolves ModelSpec only | ~0.5 day |
-| 3 | Knowledge stack is agno classes | `knowledge/__init__.py` | DECISION NEEDED: de-agno fully (~3-4 days) or document agno as an allowed KB library (0 days) | decision |
-| 4 | Skills: agno LocalSkills; **A-S pending** — spec.skills ignored by ADK/bare | `skills.py` | Native SKILL.md reader + wire into adk/bare | ~0.5 day |
-| 5 | TTS returns agno `Audio` | `services/audio/tts.py` | Return Semente `Audio` | hours |
-| 6 | **A-F: model fallback** — manifest `models.fallback` parsed but discarded; regression on ALL engines | `backends/base.py`, `step_factory` | `AgentSpec.fallback_model` + Semente-level retry wrapper | ~1 day |
-| 7 | Calculator = agno toolkit | `tools/__init__.py` | ~6 stdlib functions | hours |
+| # | Item | Result |
+|---|---|---|
+| A-F | Model fallback | `FallbackAgent` wrapper; manifest `models.fallback` + env resolved; all engines |
+| #2 | Config decoupling | agno model classes moved to `backends/agno/models.py`; config resolves provider+id only |
+| #1 | Native tool layer | `semente.tool()` returns a native `Tool`; agno converts at the boundary |
+| #7 | Calculator | Native stdlib toolkit (8 ops), same `exclude_tools` API |
+| #4 (A-S) | Skills | Native SKILL.md reader + `Skills` container; injected engine-agnostically (ADK/bare now get skills) |
+| #5 | TTS | Returns Semente `Audio` |
+| — | Type-hint imports | `RunContext` → `semente.context.Context` (persona/feedback/tool_hooks) |
+| — | Dead code | Deleted `hooks/pre_hooks.py`, `services/transcription.py` |
+| — | Logging | `semente/logging.py` stdlib facade; whatsapp helpers inlined `pcm_to_wav_bytes`/`get_image_type` |
+| A-P | Parity harness | `tests/test_parity.py`: schema + result + media parity across agno/shared-seam |
 
-## Dead / cosmetic
+## Decided
 
-- `hooks/pre_hooks.py` — engine-coupled legacy, not wired into the orchestrator; delete or port `validate_phone_authorization` engine-free
-- `services/transcription.py` — dead code constructing an agno Agent directly
-- Type-hint-only `RunContext` imports (`persona_agent`, `feedback_agent`, `tool_hooks`) → Semente `Context`
-- agno logger imports (`prompts.py`, `whatsapp/helpers.py` utils) — internalize
+- **#3 Knowledge**: **agno-as-KB-library** (0 days). The embedder/chunking/
+  PgVector/ChromaDb storage classes stay agno; retrieval is already
+  engine-neutral (`build_search_tool`). Full de-agno (~3-4 days) deferred
+  until a non-agno deployment needs it. Documented in `knowledge/__init__.py`.
 
-## Parity plan (ADK_PARITY.md)
+## Remaining (deferred, not blocking)
 
-- **A-P harness**: cross-engine golden tests (identical StepOutput shapes); real-key smokes (ADK media delivery, bare full flow — only dummy-key graceful-400 verified)
-- **G6**: tool-call log on ADK/bare for the debug panel (cosmetic)
+- **pi tool bridge** (spike-gated): TS extension generator + Python tool server
+  + shared process pool. pi currently runs one Node subprocess per agent and
+  tools don't work at all.
+- **Streaming (Phase 2)**: `Agent.stream()` protocol + orchestrator generator;
+  all engines have streaming primitives.
+- **G6** (cosmetic): tool-call log on ADK/bare for the debug panel.
+- **Real-key smokes**: ADK media delivery + bare full flow with real keys
+  (only dummy-key graceful-400 verified so far).
 
-## pi backend (spike-gated)
+## Recommended order (if resumed)
 
-Tool bridge (TS extension generator + Python tool server), shared process pool
-(currently one Node process per agent — 8+), tools don't work at all.
-
-## Streaming (Phase 2, all engines)
-
-`Agent.stream()` protocol, orchestrator generator; pi natively streams,
-litellm/ADK/agno all have streaming primitives.
-
-## Recommended order
-
-A-F → #2 (config decoupling, unblocks "bare without agno") → #1+#7+#4
-(native tool layer + skills) → A-P harness → #3 decision → pi bridge → streaming.
+pi bridge → streaming → G6 → real-key smokes.
