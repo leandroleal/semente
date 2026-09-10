@@ -167,6 +167,11 @@ def get_workflow(manifest_path: str | None = None) -> Workflow:
 
     path = manifest_path or os.getenv("SEMENTE_MANIFEST", "semente.yaml")
     manifest = Manifest.load(path)
+    # Pin the engine BEFORE any sub-agent module is imported (they call
+    # get_backend() at import time and must resolve to the manifest's engine).
+    from semente.backends.registry import set_engine
+
+    set_engine(manifest.engine)
     _apply_prompts(manifest)
     domain_spec = _load_domain(manifest)
     agent = build_agent(domain_spec, manifest)

@@ -79,11 +79,11 @@ class BareAgentAdapter:
     def __init__(self, spec: AgentSpec):
         self.spec = spec
 
-    def _resolve_tools(self, state: dict) -> list:
+    def _resolve_tools(self, ctx: StateContext) -> list:
         tools_or_callable = self.spec.tools
         if callable(tools_or_callable) and not isinstance(tools_or_callable, list):
             try:
-                raw = tools_or_callable(StateContext(state))
+                raw = tools_or_callable(ctx)
             except TypeError:
                 raw = tools_or_callable()
         else:
@@ -126,16 +126,19 @@ class BareAgentAdapter:
         import litellm
 
         state = input.session_state if input.session_state is not None else {}
+        # One context for the whole run: state by reference (tool mutations
+        # persist) + the real user_id (tools read run_context.user_id).
+        ctx = StateContext(state, input.user_id)
         media_bag = new_media_bag()
 
-        tools = self._resolve_tools(state)
+        tools = self._resolve_tools(ctx)
         if self.spec.knowledge is not None:
             from semente.knowledge import SEARCH_KNOWLEDGE_INSTRUCTIONS, build_search_tool
 
             tools.append(build_search_tool(self.spec.knowledge))
 
         instruction = self.spec.instructions
-        system = instruction(StateContext(state)) if callable(instruction) else str(instruction)
+        system = instruction(ctx) if callable(instruction) else str(instruction)
         if self.spec.knowledge is not None:
             from semente.knowledge import SEARCH_KNOWLEDGE_INSTRUCTIONS
 
@@ -184,7 +187,7 @@ class BareAgentAdapter:
                         args = {}
                     tool = tool_by_name.get(name)
                     result_text = (
-                        run_tool(tool, args, StateContext(state), media_bag)
+                        run_tool(tool, args, ctx, media_bag)
                         if tool is not None
                         else f"Unknown tool: {name}"
                     )

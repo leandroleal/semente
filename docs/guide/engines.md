@@ -17,6 +17,12 @@ Or via environment variable:
 export SEMENTE_ENGINE=adk
 ```
 
+Resolution order: an explicit manifest `engine` field wins; the env var
+applies when the manifest doesn't set one; the default is `agno`. The chosen
+engine applies to **every** agent in the app — the main agent and all
+sub-agents (welcoming, persona, feedback, summarization, media) — not just
+the main one.
+
 The same domain, manifest, prompts, and channels run unchanged.
 
 ## Backends

@@ -21,7 +21,7 @@ class Manifest:
     language: str = "en"
     domain_module: str = "domain"
     prompts_dir: str | None = None
-    engine: str = "agno"
+    engine: str | None = None  # None -> SEMENTE_ENGINE env var -> "agno"
     channels: list[str] = field(default_factory=lambda: ["streamlit"])
     features: dict[str, bool] = field(default_factory=dict)
     models: dict[str, Any] = field(default_factory=dict)
@@ -35,7 +35,7 @@ class Manifest:
             language=data.get("language", "en"),
             domain_module=data.get("domain_module", "domain"),
             prompts_dir=data.get("prompts_dir"),
-            engine=data.get("engine", "agno"),
+            engine=data.get("engine"),
             channels=data.get("channels", ["streamlit"]),
             features=data.get("features", {}),
             models=data.get("models", {}),

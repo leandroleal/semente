@@ -18,9 +18,9 @@ from semente.tools.types import Tool, ToolResult
 class StateContext:
     """Minimal Context for resolving dynamic tools/instructions against a state dict."""
 
-    def __init__(self, session_state: dict):
+    def __init__(self, session_state: dict, user_id: str | None = None):
         self.session_state = session_state
-        self.user_id = None
+        self.user_id = user_id
         self.messages = None
 
 
