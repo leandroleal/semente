@@ -14,14 +14,15 @@ from agno.media import Audio as EAudio
 from agno.media import Image as EImage
 
 from semente.backends.agno.media import to_engine_media
+from semente.backends.agno.models import build_model
 from semente.backends.base import Agent, AgentInput, AgentSpec, AgentTurn, EngineBackend
 from semente.configs.config import config
 
 
 def _build_model(spec_model):
     if spec_model is None:
-        return config.model
-    return config.build_model(spec_model.provider, spec_model.model_id)
+        return build_model(config.PRIMARY_MODEL_PROVIDER, config.PRIMARY_MODEL_ID)
+    return build_model(spec_model.provider, spec_model.model_id)
 
 
 class AgnoAgentAdapter:

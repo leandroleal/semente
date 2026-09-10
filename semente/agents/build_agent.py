@@ -12,6 +12,7 @@ from typing import Any, Callable
 
 from semente.backends.base import AgentSpec, ModelSpec
 from semente.backends.registry import get_backend
+from semente.configs.config import config
 from semente.configs.prompts import get_agent_config
 from semente.domain import DomainSpec
 from semente.schemas.user_persona import UserPersona
@@ -81,6 +82,22 @@ def _resolve_model_spec(manifest) -> ModelSpec | None:
     return None
 
 
+def _resolve_fallback_model_spec(manifest) -> ModelSpec | None:
+    """Fallback model from manifest ``models.fallback``, else env config."""
+    fb = (manifest.models or {}).get("fallback") if manifest else None
+    if fb:
+        return ModelSpec(
+            provider=fb.get("provider", "google"),
+            model_id=fb.get("id"),
+        )
+    if config.FALLBACK_MODEL_PROVIDER and config.FALLBACK_MODEL_ID:
+        return ModelSpec(
+            provider=config.FALLBACK_MODEL_PROVIDER,
+            model_id=config.FALLBACK_MODEL_ID,
+        )
+    return None
+
+
 def build_agent(domain_spec: DomainSpec, manifest: Any = None):
     """Assemble the single agent for a domain via the selected engine backend.
 
@@ -104,4 +121,15 @@ def build_agent(domain_spec: DomainSpec, manifest: Any = None):
 
     engine = getattr(manifest, "engine", None) if manifest else None
     backend = get_backend(engine)
-    return backend.build_agent(spec)
+    primary = backend.build_agent(spec)
+
+    fallback_spec = _resolve_fallback_model_spec(manifest)
+    if fallback_spec is None:
+        return primary
+
+    from dataclasses import replace
+
+    from semente.backends.base import FallbackAgent
+
+    fallback = backend.build_agent(replace(spec, model=fallback_spec))
+    return FallbackAgent(primary, fallback)

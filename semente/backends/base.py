@@ -63,6 +63,28 @@ class Agent(Protocol):
     def run(self, input: AgentInput) -> AgentTurn: ...
 
 
+class FallbackAgent:
+    """Runs the primary agent; on any failure, retries once with the fallback.
+
+    Engine-agnostic: wraps any two ``Agent`` instances. The fallback is a
+    model-level safety net (rate limits, model unavailability), not a domain
+    retry — any exception from the primary triggers one fallback attempt.
+    """
+
+    def __init__(self, primary: Agent, fallback: Agent):
+        self.primary = primary
+        self.fallback = fallback
+
+    def run(self, input: AgentInput) -> AgentTurn:
+        try:
+            return self.primary.run(input)
+        except Exception:
+            from semente.logging import log_warning
+
+            log_warning("primary model failed; retrying with fallback model")
+            return self.fallback.run(input)
+
+
 class EngineBackend(ABC):
     """A swappable agent engine (Agno, ADK, pi, …)."""
 
