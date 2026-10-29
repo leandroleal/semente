@@ -1,12 +1,13 @@
 """Assemble a Semente application from a manifest.
 
 The single entry point: loads the manifest, applies the prompts dir, imports
-the domain, builds the agent + workflow, and wires the channels. The domain is
-imported *inside* this function (after the prompts dir is set) so that
-domain tools loading prompts at import time resolve correctly.
+the domain, builds the Harness (agents + pipeline), and wires the
+channels. The domain is imported *inside* this function (after the prompts
+dir is set) so that domain tools loading prompts at import time resolve
+correctly.
 
 No Agno ``AgentOS`` — the FastAPI app is assembled directly and the WhatsApp
-router is mounted on it.
+and A2A routers are mounted on it.
 """
 
 from __future__ import annotations
@@ -30,15 +31,20 @@ def build_app(manifest_path: str | Path | None = None) -> Any:
 
     from semente.interfaces.whatsapp import Whatsapp
     from semente.manifest import Manifest
-    from semente.workflows.base_workflow import get_workflow
+    from semente.core.harness import get_harness
 
     path = manifest_path or os.getenv("SEMENTE_MANIFEST", "semente.yaml")
     manifest = Manifest.load(path)
-    workflow = get_workflow(path)
+    agent = get_harness(path)
 
     app = FastAPI(title=manifest.name)
     if "whatsapp" in manifest.channels:
-        whatsapp = Whatsapp(workflow=workflow)
+        whatsapp = Whatsapp(agent=agent)
         app.include_router(whatsapp.get_router())
+    if "a2a" in manifest.channels:
+        from semente.interfaces.a2a import A2A
+
+        a2a = A2A(agent=agent, name=manifest.name, card=manifest.a2a)
+        app.include_router(a2a.get_router())
 
     return app

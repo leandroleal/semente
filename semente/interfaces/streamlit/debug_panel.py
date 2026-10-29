@@ -1,4 +1,4 @@
-"""Streamlit debug panel renderer for the Pasto Legal multi-agent system.
+"""Streamlit debug panel renderer for the Semente multi-agent pipeline.
 
 Renders a sidebar expander with tabs for inspecting session state,
 agent routing, tool calls, metrics, and message history in real time.
@@ -268,12 +268,12 @@ def render_debug_panel() -> None:
             with col2:
                 st.metric("Tool Calls", len(tool_calls))
 
-            # Refresh session state from workflow (live)
+            # Refresh session state from the agent (live)
             if st.button("Refresh State", key="refresh_debug_state"):
                 try:
-                    from semente.workflows.base_workflow import get_workflow
+                    from semente.core.harness import get_harness
                     from semente.interfaces.streamlit.debug_helpers import extract_session_state
-                    live_state = get_workflow().get_session_state(
+                    live_state = get_harness().get_session_state(
                         session_id=st.session_state.session_id
                     )
                     if live_state:

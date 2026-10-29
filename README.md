@@ -12,13 +12,18 @@ knowledge base, skills, and prompts.
 
 > *Pasto Legal was the first seed.*
 
-📖 **Full documentation:** https://leandroleal.github.io/semente (source in [`docs/`](docs/)).
+📖 **Full documentation:** https://semente.lapig.ufg.br (source in [`docs/`](docs/)).
+
+🤖 **For AI agents:** machine-readable docs at
+[`/llms.txt`](https://lapig-ufg.github.io/semente/llms.txt) (index) and
+[`/llms-full.txt`](https://lapig-ufg.github.io/semente/llms-full.txt) (everything
+in one file). Every page is also available as plain Markdown by appending `.md`.
 
 ---
 
 ## Quickstart — deploy the Toy App
 
-The **Toy App** (`examples/echo_domain/`) is the minimal Semente app: one `echo`
+The **Toy App** (`examples/minimal-chat/`) is the minimal Semente app: one `echo`
 tool, no knowledge base. Use it to verify the framework boots, then copy it as
 the starting point for your own app.
 
@@ -31,7 +36,7 @@ the starting point for your own app.
 ### 2. Install
 
 ```bash
-git clone https://github.com/leandroleal/semente.git
+git clone https://github.com/lapig-ufg/semente.git
 cd semente
 uv venv .venv && source .venv/bin/activate
 uv pip install -e .
@@ -40,7 +45,7 @@ uv pip install -e .
 ### 3. Configure
 
 ```bash
-cd examples/echo_domain
+cd examples/minimal-chat
 cp .env.example .env
 # edit .env → set GOOGLE_API_KEY=your-gemini-api-key
 ```
@@ -49,7 +54,7 @@ cp .env.example .env
 
 ```bash
 export SEMENTE_MANIFEST=semente.yaml
-semente streamlit
+semente launch streamlit
 ```
 
 Open **http://localhost:8501** and chat — the Echo assistant replies
@@ -84,12 +89,12 @@ Requires `WHATSAPP_*` and `VALKEY_*` env vars (see `.env.example` and the
 User (WhatsApp / Streamlit)
         │
         ▼
-   Semente workflow
-   ├── Input step (media → text)
+   Semente workflow (the Harness)
+   ├── Input step (media → text, geo → GeoJSON)
    ├── PII guardrail
-   ├── Onboarding check (terms)
-   ├── Parallel: summarization + feedback loop + your agent
-   ├── Remediation merge
+   ├── Onboarding check (terms + persona)
+   ├── Summarization, feedback loop, then your agent
+   ├── Remediation (apology instead of a frustrated answer)
    └── Output step (TTS)
         │
         ▼
@@ -101,7 +106,7 @@ You write two things:
 **`domain/__init__.py`** — your domain:
 
 ```python
-from agno.tools import tool
+from semente import tool
 from semente.domain import DomainSpec
 
 @tool(description="Echo the given message back to the user.")
@@ -128,11 +133,12 @@ domain_module: domain        # import path exposing `domain_spec`
 prompts_dir: domain/prompts  # optional; explicit prompts dir
 engine: agno                 # agno (default) | adk | bare
 channels: [streamlit]        # streamlit and/or whatsapp
-features:                    # all default to true
+features:                    # booleans default to true
   tts: true                  # TTS tool on the welcoming agent
-  feedback_workflow: true    # satisfaction/persona feedback loop
+  interaction-assessment: true  # satisfaction/persona loop + remediation; or
+                             # {enable: true, window_size: 5} (DPO/SFT capture)
   summarization: true        # rolling conversation summary
-  pii_guardrail: true        # PII/LGPD blocking step
+  guardrails: true           # pluggable input guardrails (see Guardrails doc)
 models:                      # optional override of env-var model config
   primary: { provider: google, id: gemini-3.5-flash-lite }
   fallback: { provider: ollama, id: gemma4:31b-cloud }
@@ -149,18 +155,24 @@ The `engine` field (or `SEMENTE_ENGINE` env var) swaps the agent engine — see
 |---|---|
 | [Getting Started](docs/guide/getting-started.md) | Install + first app |
 | [The Domain](docs/guide/domain.md) | `DomainSpec` reference |
+| [Guardrails](docs/guide/guardrails.md) | Pluggable input safety (redact/block) |
+| [Domain API](docs/guide/domain-api.md) | The engine-free import surface |
 | [Manifest Reference](docs/guide/manifest.md) | Every `semente.yaml` option |
+| [CLI Reference](docs/guide/cli.md) | `init`, `feature`, `channel`, `provider`, `status`, `launch` |
+| [Feedback & Fine-Tuning](docs/guide/feedback.md) | DPO/SFT capture loop |
 | [Prompts & i18n](docs/guide/prompts.md) | YAML prompts + localization |
 | [Channels](docs/guide/channels.md) | WhatsApp + Streamlit |
 | [Engines](docs/guide/engines.md) | agno / adk / bare backends |
+| [Architecture](docs/architecture/README.md) | Harness pipeline + package map |
 | [Deploy the Toy App](docs/deployment/toy-app.md) | Full deployment walkthrough |
 | [Pasto Legal](docs/showcase/pasto-legal.md) | The first seed, as a showcase |
 
 Build the docs site locally:
 
 ```bash
+cd docs
 npm install
-npm run docs:dev     # http://localhost:5173
+npm run dev     # http://localhost:5173
 ```
 
 ## License

@@ -1,0 +1,22 @@
+name: minimal-chat
+language: en
+domain_module: domain
+prompts_dir: domain/prompts
+engine: agno
+channels:
+- streamlit
+features:
+  tts: true
+  summarization: true
+  guardrails: true
+  terms-acceptance:
+    enable: true
+    file: domain/terms_example.md
+    url: ''
+  interaction-assessment:
+    enable: true
+    window_size: 5
+models:
+  primary:
+    provider: google
+    id: gemini-3.5-flash-lite

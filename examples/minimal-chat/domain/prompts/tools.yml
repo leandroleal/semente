@@ -1,0 +1,172 @@
+# =============================================================================
+# Tool descriptions and result texts — ENGLISH DEFAULT (domain-neutral base).
+#
+# Grouped by component (tool file), then by tool function name. Each entry has
+# a `description` tag passed to the engine tool decorator and a `results`
+# mapping keyed by the tool's return branch, consumed via
+# `get_tool_result_text(component, tool_name, key, **kwargs)`.
+#
+# This file is the fallback used whenever the app's tools.yml is missing or has
+# missing/blank descriptions/results; each missing part is filled from here
+# and logged as a warning.
+#
+# Domain tools (your own files) add their own component groups in the app's
+# tools.yml. The docstrings in the Python files stay as developer reference;
+# the description here overrides them at runtime.
+# =============================================================================
+
+tts_tools:
+  generate_speech:
+    description: |
+      Generates spoken audio (text-to-speech) from a provided text.
+
+      WHEN TO USE:
+      - Call this tool ONLY when the user explicitly requests an audio or voice reply.
+      - Call this tool if the current session or the system preference requires audio replies.
+
+      Args:
+          text (str): The full content text.
+
+      Returns:
+          ToolResult: Result object containing the generated speech.
+    results:
+      success: |
+        Audio generated successfully!
+      error: |
+        Failed to generate audio: {error}.
+
+onboarding_tools:
+  accept_terms_and_conditions:
+    description: |
+      Records the user's formal acceptance of the Terms of Use in the database.
+      Call it only after the user clearly agrees with the terms.
+    results:
+      missing_user_id: |
+        Error: User identifier not found in the execution context.
+      success: |
+        Formal acceptance successfully registered! The main workflow has been unlocked. Politely inform the user.
+      error_persistence: |
+        Critical persistence error while saving terms acceptance: {error}
+
+version_tools:
+  consult_update_notes:
+    description: |
+      Reads and returns the update notes (patch notes) of the system.
+      Use this tool when the user asks about the current version, news or updates.
+    results:
+      release_dir_not_found: |
+        Error: The release notes directory was not found in the system.
+      no_release_notes: |
+        Warning: No release note was found in the repository.
+      release_file_not_found: |
+        Error: The update notes were not found.
+      success: |
+        Patch content:
+
+        {content}
+
+        Share this information IN FULL with the user, using plain text
+        formatting. Do not use Markdown formatting such as #, ## or **.
+      error: |
+        Unexpected error while trying to read the patch file: {error}
+
+feedback_tools:
+  record_analisys_feedback:
+    description: |
+      Records a suggestion of a new feature or data analysis.
+      Use when the user requests an analysis the assistant does not yet have tools to generate.
+    results:
+      success: |
+        Feedback successfully registered in the system. Thank you very much for helping to improve the assistant!
+      error: |
+        Failed to register feedback: {error}.
+
+persona_tools:
+  update_persona_name:
+    description: |
+      Organically updates the user's persona (profile) name in the session state.
+
+      Use this tool only when the user states or confirms their name
+      during the conversation in a natural way.
+
+      Args:
+          name (str): The user's proper name (e.g.: "Ana", "Maria").
+    results:
+      success: |
+        Name successfully updated to: {name}
+      error: |
+        Failed to update persona name: {error}.
+  update_persona_role:
+    description: |
+      Organically updates the user's professional role or occupation in the session state.
+
+      Use this tool when the user clearly identifies what they do.
+
+      Args:
+          role (str): The role or occupation in the user's own words
+              (e.g.: "teacher", "small business owner", "agronomist").
+    results:
+      success: |
+        Professional role successfully updated to: {role}
+      error: |
+        Failed to update persona role: {error}.
+  update_persona_region:
+    description: |
+      Organically updates the persona's regionality/location in the session state.
+
+      Use this tool when the user mentions the city, state or region where they operate.
+
+      Args:
+          regionality (str): City, state or region of the user (e.g.: "Lisbon", "Minas Gerais").
+    results:
+      success: |
+        Regionality successfully updated to: {regionality}
+      error: |
+        Failed to update persona regionality: {error}.
+  create_persona_preference:
+    description: |
+      Adds a new preference, interest, hobby or behavior discovered about the user.
+
+      Use this tool subtly whenever you pick up a liking, routine or preference of the user.
+      Avoid duplicating existing keys. If the key already exists, use 'update_persona_preference'.
+
+      Args:
+          key (str): A short lowercase keyword identifying the category (e.g.: "culture", "coffee", "contact_time", "favorite_channel").
+          description (str): Details about the user's liking or behavior in that category.
+    results:
+      preference_exists: |
+        The preference '{key}' already exists. Use 'update_persona_preference' to modify it.
+      success: |
+        New preference registered: {key} -> {description}
+      error: |
+        Failed to register preference: {error}.
+  update_persona_preference:
+    description: |
+      Updates an existing preference or behavior in the user's persona.
+
+      Use this tool when the user changes their mind or brings new information
+      about a point that had already been mapped before.
+
+      Args:
+          key (str): The exact keyword of the preference to be updated (e.g.: "culture", "coffee").
+          description (str): The new updated description that will replace the previous one.
+    results:
+      preference_not_found: |
+        Could not update: The preference with key '{key}' was not found.
+      success: |
+        Preference '{key}' successfully updated.
+      error: |
+        Failed to update preference: {error}.
+  remove_persona_preference:
+    description: |
+      Removes a specific preference from the user's profile when it is no longer valid.
+
+      Args:
+          key (str): The keyword of the preference that must be removed.
+    results:
+      preference_not_found: |
+        No preference found with key '{key}' for removal.
+      success: |
+        Preference '{key}' successfully removed.
+      error: |
+        Failed to remove preference: {error}.

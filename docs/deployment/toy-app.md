@@ -1,7 +1,7 @@
 # Deploy the Toy App
 
 The **Toy App** is the minimal Semente application — the *Echo domain* in
-`examples/echo_domain/`. It has one tool (`echo`), no knowledge base, and no
+`examples/minimal-chat/`. It has one tool (`echo`), no knowledge base, and no
 skills. It exists to prove the framework boots and to serve as the starting
 point for your own app.
 
@@ -16,7 +16,7 @@ This guide walks through running it locally and deploying it to production.
 ## 1. Get the code
 
 ```bash
-git clone https://github.com/leandroleal/semente.git
+git clone https://github.com/lapig-ufg/semente.git
 cd semente
 ```
 
@@ -33,7 +33,7 @@ This installs the `semente` package and the `semente` CLI.
 ## 3. Configure the environment
 
 ```bash
-cd examples/echo_domain
+cd examples/minimal-chat
 cp .env.example .env
 ```
 
@@ -51,7 +51,7 @@ GOOGLE_API_KEY=your-gemini-api-key
 
 ```bash
 export SEMENTE_MANIFEST=semente.yaml
-semente streamlit
+semente launch streamlit
 ```
 
 Open `http://localhost:8501`. You should see the chat UI. Type a message and
@@ -59,12 +59,12 @@ the Echo assistant replies with `Echo: <your message>`.
 
 ## 5. What just happened
 
-1. `semente streamlit` launched the Streamlit webapp bundled with Semente.
+1. `semente launch streamlit` launched the Streamlit webapp bundled with Semente.
 2. The webapp read `SEMENTE_MANIFEST` → `semente.yaml`.
 3. Semente imported the `domain` package (your `domain_spec`), built the single
-   agent with the `echo` tool, and assembled the workflow:
-   `Input → PII guardrail → Onboarding → Echo agent → Output`.
-4. The chat UI talks to that workflow.
+   agent with the `echo` tool, and assembled the Harness pipeline:
+   `Input → Guardrail chain → Onboarding → Echo agent → Output`.
+4. The chat UI talks to that agent.
 
 ## 6. Deploy to production (WhatsApp)
 
@@ -139,5 +139,6 @@ Set the WhatsApp webhook URL to the ngrok HTTPS URL and verify with
 ## Next steps
 
 - Replace the `echo` tool with your own tools — see [The Domain](/guide/domain).
-- Add a knowledge base for Q&A — see [Prompts & i18n](/guide/prompts).
+- Add a knowledge base for Q&A — see [The Domain](/guide/domain#domainspec).
+- Configure the app with the CLI — see [CLI Reference](/guide/cli).
 - See a real domain in [Pasto Legal](/showcase/pasto-legal).

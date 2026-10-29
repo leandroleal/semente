@@ -3,7 +3,7 @@ from semente.context import Context
 from semente.backends.base import AgentSpec
 from semente.backends.registry import get_backend
 from semente.configs.prompts import get_agent_config
-from semente.schemas.user_mood import Effectiveness
+from semente.schemas.interaction_assessment import Effectiveness
 
 
 _remediation_config = get_agent_config("remediation_agent")
@@ -20,14 +20,16 @@ remediation_agent = get_backend().build_agent(
 
 def get_satisfaction_instructions(run_context: Context) -> str:
     session_state = run_context.session_state or {}
-    user_mood_dict = session_state.get("user_mood", None)
+    # Pending DPO pair from last turn: the user received a new (better)
+    # answer and this turn's message is the evaluation of it.
+    has_pending = bool(session_state.get("pending_feedback"))
 
     base_instructions = _satisfaction_config["base_instructions"].strip()
 
-    if user_mood_dict is None:
-        scenario_text = _satisfaction_config["scenario_initial"].strip()
-    else:
+    if has_pending:
         scenario_text = _satisfaction_config["scenario_remediation"].strip()
+    else:
+        scenario_text = _satisfaction_config["scenario_initial"].strip()
 
     return f"{base_instructions}\n\n{scenario_text}"
 

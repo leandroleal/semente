@@ -4,17 +4,22 @@ The manifest (`semente.yaml`) is the app-level configuration. Every field is
 optional except `name` and `domain_module`.
 
 ```yaml
-name: my-app                 # app name (workflow name)
+name: my-app                 # app name
 language: pt-BR              # optional; loads prompts/<lang>/ if present
 domain_module: domain        # import path exposing `domain_spec`
 prompts_dir: domain/prompts  # optional; explicit prompts dir (overrides language)
 engine: agno                 # agno (default) | adk | bare
-channels: [streamlit]        # streamlit and/or whatsapp
-features:                    # all default to true
+channels: [streamlit]        # streamlit, whatsapp and/or a2a
+features:                    # booleans default to true (terms-acceptance: false)
+  onboarding: true           # welcome + name/role step before the main agent; false = answer right away
   tts: true                  # attach TTS tool to the welcoming agent
-  feedback_workflow: true    # satisfaction/persona feedback loop
+  interaction-assessment: true  # satisfaction/persona loop + DPO/SFT capture, or {enable: true, window_size: 5}
   summarization: true        # rolling conversation summary
-  pii_guardrail: true        # PII/LGPD blocking step
+  guardrails: true           # pluggable input guardrails (DomainSpec.guardrails)
+  terms-acceptance:          # onboarding terms gate — off unless enabled
+    enable: true
+    file: domain/terms.md    # reference terms text (required when enabled)
+    url: https://example.com/terms  # optional: link sent in the first message
 models:                      # optional override of env-var model config
   primary: { provider: google, id: gemini-3.5-flash-lite }
   fallback: { provider: ollama, id: gemma4:31b-cloud }
@@ -24,23 +29,69 @@ models:                      # optional override of env-var model config
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `name` | `str` | — | App name; used as the workflow name. |
+| `name` | `str` | — | App name; formatted into the onboarding prompts and shown in `semente status`. |
 | `language` | `str` | `en` | Selects `prompts/<language>/` when it exists. |
 | `domain_module` | `str` | `domain` | Import path of the module exposing `domain_spec`. |
 | `prompts_dir` | `str` | — | Explicit prompts directory (relative to cwd). Overrides `language`. |
 | `engine` | `str` | `agno` | Agent engine: `agno`, `adk`, or `bare`. See [Engines](engines.md). |
-| `channels` | `list` | `[streamlit]` | `streamlit` and/or `whatsapp`. |
-| `features` | `dict` | all `true` | Feature toggles (see below). |
+| `channels` | `list` | `[streamlit]` | `streamlit`, `whatsapp` and/or `a2a`. |
+| `features` | `dict` | all `true` (except `terms-acceptance`) | Feature toggles (see below). |
 | `models` | `dict` | — | Overrides the `.env` model config. |
+
+## Engine resolution
+
+The manifest `engine` field is the first resolver. When absent, Semente falls
+back to the `SEMENTE_ENGINE` environment variable, then the `agno` default:
+
+```bash
+export SEMENTE_ENGINE=adk    # applies when the manifest has no engine field
+```
 
 ## Feature toggles
 
-| Toggle | When `false` |
+| Toggle | When off |
 |---|---|
+| `onboarding` | The whole onboarding gate (terms + name/role) is skipped: every turn goes straight to the main agent, even for a brand-new anonymous user. Meant for single-purpose bots such as [Groot](/showcase/groot). On by default. |
 | `tts` | The welcoming agent is built without the TTS tool. |
-| `feedback_workflow` | The satisfaction/persona feedback loop is omitted from the parallel branch. |
-| `summarization` | The rolling conversation summary step is omitted. |
-| `pii_guardrail` | The PII blocking step is omitted. |
+| `interaction-assessment` | The whole loop — satisfaction agent, DPO/SFT persistence and capture, persona updates, and remediation — is omitted from the run. Boolean or `{enable, window_size}` — see [Feedback & Fine-Tuning](feedback.md). |
+| `summarization` | The rolling conversation summary stage is omitted. |
+| `guardrails` | The app's guardrail chain (`DomainSpec.guardrails`) is skipped everywhere — see [Guardrails](guardrails.md). |
+| `terms-acceptance` | The terms stage is skipped: new users go straight to the persona stage (and the DB gate never asks for an acceptance row). Off by default. |
+
+Absent keys default to enabled, **except `terms-acceptance`, which is off
+unless enabled** — a domain-neutral framework cannot assume the app has terms
+to accept. Turn the whole subsystem off with
+`interaction-assessment: false` (it also saves an LLM call per turn).
+
+### Terms acceptance
+
+When enabled, the welcoming agent's first message asks the user to accept the
+Terms of Use, and `accept_terms_and_conditions` records the acceptance in the
+`user_terms_acceptance` table. `file` is the reference text the agent may quote
+if the user asks questions (the full text is never pasted unprompted); `url` is
+optional and, when set, is sent verbatim in that first message. A missing or
+unreadable `file` fails at startup — consent is never recorded without terms
+the user could have read. Paths are resolved relative to `semente.yaml`.
+
+The first `semente feature terms-acceptance --enable` (or
+`feature add terms-acceptance`) scaffolds `domain/terms_example.md` and
+configures `file` for you; replace that example with your real terms. Existing
+files and an already-configured `file` are never overwritten.
+
+### Legacy `terms_text`
+
+The terms reference used to live in `agents.yml` (`welcoming_agent.terms_text`).
+It now comes from `features.terms-acceptance.file`; apps can delete the old
+key from their prompts.
+
+> **Legacy aliases:** the old `features.feedback_workflow` and
+> `features.feedback` keys still load (merged into
+> `interaction-assessment`, with deprecation warnings) — rename them in
+> your manifest.
+>
+> **Legacy alias:** the old `features.pii_guardrail` key still loads
+> (normalized to `guardrails`, with a deprecation warning) — rename it in
+> your manifest.
 
 ## Model resolution
 
@@ -62,6 +113,24 @@ models:
   fallback: { provider: ollama, id: gemma4:31b-cloud }
 ```
 
+## A2A agent card
+
+Optional `a2a` block that customizes the Agent Card served by the
+[A2A channel](/guide/channels#a2a). Without it, the card uses the manifest name
+and a default `chat` skill.
+
+```yaml
+a2a:
+  description: Answers questions about the Semente framework.
+  version: 1.0.0
+  skills:
+    - id: semente-docs-qa
+      name: Semente docs Q&A
+      description: Explains Semente concepts and cites the docs.
+      tags: [docs, semente]
+      examples: [What is the Harness?]
+```
+
 ## Environment variables
 
 Semente reads configuration from a `.env` file in the working directory
@@ -69,15 +138,19 @@ Semente reads configuration from a `.env` file in the working directory
 
 | Variable | Purpose |
 |---|---|
-| `APP_ENV` | `development`, `staging`, or `production` (default `development`) |
+| `APP_ENV` | `development` (default), `stagging`, or `production` |
 | `DATABASE_TYPE` | `sqlite` (dev) or `postgres` (prod) |
 | `SEMENTE_MANIFEST` | Path to the manifest (default `semente.yaml`) |
+| `SEMENTE_ENGINE` | Engine when the manifest has no `engine` field (`agno`, `adk`, `bare`) |
+| `SEMENTE_DEMO` | Set by `semente launch streamlit --demo`; boots the built-in demo domain |
 | `SEMENTE_PROMPTS_DIR` | Prompts directory (overridden by manifest `prompts_dir`) |
 | `TTS_MODEL` | TTS model id (default `gemini-3.1-flash-tts-preview`) |
 | `POSTGRES_*` | PostgreSQL connection (prod) |
 | `PGVECTOR_*` | PgVector connection (knowledge base) |
 | `WHATSAPP_*` | WhatsApp Business API credentials |
 | `VALKEY_*` | Valkey/Redis (WhatsApp debouncing, prod) |
+| `A2A_API_KEY` | Optional key protecting `POST /a2a` |
+| `A2A_PUBLIC_URL` | Public base URL advertised in the Agent Card |
 | `GEE_*` | Earth Engine service account (geospatial domains) |
 | `S3_*` | S3-compatible storage (media, prod) |
 

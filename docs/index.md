@@ -3,7 +3,7 @@ layout: home
 
 hero:
   name: Semente
-  text: Multi-agent AI chat for land use
+  text: Declarative multi-agent AI framework — decoupling domain knowledge from agent orchestration.
   tagline: Grow a domain-specific AI assistant from a single seed — tools, knowledge, and prompts.
   image:
     src: /semente/logo.svg
@@ -19,10 +19,10 @@ hero:
 features:
   - icon: 🌱
     title: One domain, one app
-    details: Supply a DomainSpec (tools + knowledge + skills) and a semente.yaml manifest. The framework assembles the workflow, agents, and channels.
+    details: Supply a DomainSpec (tools + knowledge + skills) and a semente.yaml manifest. The framework assembles the agent, and channels.
   - icon: 🧠
-    title: Multi-agent workflow
-    details: Onboarding, intent routing, feedback/persona loop, summarization, and PII guardrails — all domain-neutral and config-driven.
+    title: Multi-agent pipeline
+    details: Staged onboarding, feedback/persona loop with DPO capture, summarization, and pluggable input guardrails — all domain-neutral and config-driven.
   - icon: 💬
     title: WhatsApp & Streamlit
     details: Ship to farmers' phones over WhatsApp, or debug in a Streamlit UI. Channels are pluggable.
@@ -33,11 +33,8 @@ features:
 
 ## What is Semente?
 
-**Semente** (Portuguese for *seed*) is a multi-agent AI chat framework for land
-use and agriculture. It was extracted from
-[Pasto Legal](https://github.com/lapig-ufg/pasto-legal) (LAPIG/UFG) — an AI
-assistant that delivers satellite-based pasture diagnostics to Brazilian
-ranchers over WhatsApp.
+**Semente** (Portuguese for *seed*) Build multi-agent AI pipelines and
+conversational channels from pure domain knowledge—without framework lock-in.
 
 Semente keeps the domain-neutral engine and lets you grow a new assistant by
 supplying a **domain**: the tools, knowledge base, skills, and prompts that make
@@ -51,13 +48,13 @@ your app specific.
 User (WhatsApp / Streamlit)
         │
         ▼
-   Semente workflow
-   ├── Input step (media → text)
-   ├── PII guardrail
-   ├── Onboarding check (terms)
-   ├── Parallel: summarization + feedback loop + your agent
-   ├── Remediation merge
-   └── Output step (TTS)
+   Harness (single-object pipeline)
+    ├── Input pre-processing (media → text, geo → GeoJSON)
+    ├── Guardrail chain (pluggable: redact or block)
+    ├── Onboarding gate (persona; optional terms gate)
+    ├── Summarization, feedback loop, then your agent
+    ├── Remediation (apology instead of a frustrated answer)
+    └── Output finalization (TTS)
         │
         ▼
    Your domain (tools, knowledge, skills, prompts)

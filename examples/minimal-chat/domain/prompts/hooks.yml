@@ -1,0 +1,25 @@
+# =============================================================================
+# Hook texts — ENGLISH DEFAULT (domain-neutral base).
+#
+# User-facing/system messages returned or injected by tool hooks declared with
+# the `@tool(tool_hooks=[...])` decorator (see semente/hooks/tool_hooks.py).
+#
+# This file is the fallback used whenever the app's hooks.yml is missing or has
+# missing/blank keys; each missing part is filled from here and logged as a
+# warning. Apps add their own domains' texts in their hooks.yml.
+# =============================================================================
+
+tool_hooks:
+  # validate_state_hook: blocking message when the required state is missing.
+  missing_required_state: |
+    It was not possible to complete the action because the required information
+    is not available yet. Apologize to the user and ask for what is missing.
+  # validate_rate_limit_hook: media already delivered in this session.
+  media_already_delivered: |
+    The requested media has already been generated with these exact parameters and delivered in this session.
+  # validate_rate_limit_hook: empty media returned by the integration.
+  media_empty: |
+    Error: The integration returned empty media. Try again.
+  # validate_rate_limit_hook: external integration failure prefix.
+  media_integration_error: |
+    External integration error: Failed to run {function_name}. Detail: {error}

@@ -2,12 +2,19 @@ import io
 import mimetypes
 import os
 import wave
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, List, Optional, Tuple, Union
 
 import httpx
 
-from semente.logging import log_error, log_info, log_warning
+from semente.logging import log_debug, log_error, log_info, log_warning
+
+from semente.guardrails import (
+    GuardrailContext,
+    active_chain,
+    mask_text,
+    redact_text,
+)
 
 _BASE_URL = "https://graph.facebook.com"
 _API_VERSION = "v22.0"
@@ -91,15 +98,38 @@ class MessageContent:
     video_id: Optional[str] = None
     audio_id: Optional[str] = None
     doc_id: Optional[str] = None
+    doc_filename: Optional[str] = None
+    # Types of personal data removed from the text, if any were found.
+    redacted_types: list = field(default_factory=list)
+
+    def __post_init__(self):
+        # Redact here, not in each branch of extract_message_content: raw text
+        # never reaches the log, Valkey, or the database. Covers today's
+        # branches and any that come later. The guards come from the active
+        # guardrail chain — the same chain the pipeline will use next.
+        chain = active_chain()
+        if chain is None or not chain.enabled:
+            log_debug("guardrails[channel:whatsapp]: no active chain — text untouched")
+            return
+        result = chain.redact(
+            GuardrailContext(text=self.text or "", source="channel")
+        )
+        if result.removed:
+            # Types only — values never reach the log.
+            log_info(f"guardrail[channel:whatsapp]: removed ({', '.join(result.removed)})")
+        else:
+            log_debug("guardrails[channel:whatsapp]: clean")
+        self.text, self.redacted_types = result.text, result.removed
 
 
 def extract_message_content(message: dict) -> Optional[MessageContent]:
-    log_info(message)
+    # Masking: this log runs before redaction, with the raw Meta payload.
+    log_info(mask_text(str(message)))
     msg_type = message.get("type")
 
     if msg_type == "text":
         text = message["text"]["body"]
-        log_info(text)
+        log_info(mask_text(text))
         return MessageContent(text=text)
     
     if msg_type == "location":
@@ -107,7 +137,7 @@ def extract_message_content(message: dict) -> Optional[MessageContent]:
         longitude = message['location']['longitude']
         log_info(f"Lat: {latitude} Long: {longitude}")
         return MessageContent(
-            text=f"Quero registrar minha propriedade nas coordenadas Lat: {latitude} Long: {longitude}.",
+            text=f"I want to register my property at coordinates Lat: {latitude} Long: {longitude}.",
         )
 
     if msg_type == "image":
@@ -129,6 +159,7 @@ def extract_message_content(message: dict) -> Optional[MessageContent]:
         return MessageContent(
             text=message.get("document", {}).get("caption", ""),
             doc_id=message["document"]["id"],
+            doc_filename=message["document"].get("filename"),
         )
 
     # Interactive replies carry the selected option's title and description
@@ -244,7 +275,9 @@ async def download_event_media_async(parsed: "MessageContent", config: WhatsAppC
         elif label == "audio":
             run_kwargs["audio"] = [Audio(content=content, mime_type=mime)]
         elif label == "document":
-            run_kwargs["files"] = [File(content=content, mime_type=mime)]
+            # WhatsApp may omit the document filename; the input step sniffs
+            # the format from the file's magic bytes when there is no extension.
+            run_kwargs["files"] = [File(content=content, mime_type=mime, name=parsed.doc_filename)]
 
     return run_kwargs, skipped
 
@@ -397,6 +430,45 @@ async def send_whatsapp_message_async(
     for i, batch in enumerate(message_batches, 1):
         batch_message = f"[{i}/{len(message_batches)}] {batch}"
         await _send_text(recipient=recipient, text=_format(batch_message), config=config)
+
+
+def filter_generated_media(response: Any, input_media: dict) -> dict[str, list]:
+    """Split response media into genuinely generated items, dropping echoes.
+
+    Some engines (e.g. agno's Workflow) seed the run output's
+    ``images/videos/audio/files`` with the media passed to ``run()`` (same
+    instances, shallow-copied lists), so sending back everything in those
+    attributes would echo the user's own media. Additionally, the input step
+    attaches converted GeoJSON files (``format="geojson"``) to its step
+    output; those internal artifacts are dropped too.
+
+    Args:
+        response: Workflow/Agent run output (attributes accessed via getattr).
+        input_media: The media kwargs passed to ``run()`` (e.g. run_kwargs),
+            keyed by "images"/"videos"/"audio"/"files".
+
+    Returns:
+        Dict mapping attribute name -> list of media items that were NOT
+        part of the run input (and are not geojson artifacts). Empty lists
+        are omitted.
+    """
+    input_ids = {
+        id(item)
+        for key in ("images", "videos", "audio", "files")
+        for item in (input_media.get(key) or [])
+    }
+
+    generated: dict[str, list] = {}
+    for attr in ("images", "videos", "audio", "files"):
+        items = getattr(response, attr, None) or []
+        kept = [
+            item
+            for item in items
+            if id(item) not in input_ids and not (getattr(item, "format", None) == "geojson")
+        ]
+        if kept:
+            generated[attr] = kept
+    return generated
 
 
 async def upload_and_send_media_async(

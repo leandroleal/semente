@@ -16,7 +16,6 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
-from semente.core.orchestrator import Workflow
 from semente.logging import log_error, log_info, log_warning
 
 from semente.interfaces.whatsapp.security import validate_webhook_signature
@@ -24,6 +23,7 @@ from semente.interfaces.whatsapp.helpers import (
     WhatsAppConfig,
     download_event_media_async,
     extract_message_content,
+    filter_generated_media,
     send_whatsapp_message_async,
     typing_indicator_async,
     upload_and_send_media_async,
@@ -56,9 +56,9 @@ def _get_valkey_client():
 _LONG_SLEEP = 8
 _SHORT_SLEEP = 4
 
-_EXECUTION_MESSAGE = "Ainda estamos processando sua última mensagem. Por favor, aguarde..."
-_ERROR_MESSAGE = "Desculpe, ocorreu um erro ao processar sua mensagem. Por favor, tente novamente mais tarde."
-_SESSION_RESET_MESSAGE = "Nova conversa iniciada!"
+_EXECUTION_MESSAGE = "We are still processing your last message. Please wait..."
+_ERROR_MESSAGE = "Sorry, an error occurred while processing your message. Please try again later."
+_SESSION_RESET_MESSAGE = "New conversation started!"
 
 # Metadata lines from ReasoningTools that aren't useful to end users
 _REASONING_SKIP_PREFIXES = ("Action:", "Next Action:", "Confidence:")
@@ -89,8 +89,8 @@ class _DebouceStatus(StrEnum):
     COMPLETE: str = auto()
 
 
-def _resolve_session_config(workflow: Workflow) -> _SessionConfig:
-    store = getattr(workflow, "store", None)
+def _resolve_session_config(agent) -> _SessionConfig:
+    store = getattr(agent, "store", None)
     return _SessionConfig(store=store, has_db=store is not None)
 
 
@@ -131,7 +131,7 @@ def decrypt_phone(token: str, key: bytes) -> str:
 
 def attach_routes(
     router: APIRouter,
-    workflow: Workflow = None,
+    agent=None,
     show_reasoning: bool = False,
     send_user_number_to_context: bool = False,
     access_token: Optional[str] = None,
@@ -141,12 +141,12 @@ def attach_routes(
     enable_encryption: bool = False,
     encryption_key: Optional[bytes] = None,
 ) -> APIRouter:
-    if workflow is None:
-        raise ValueError("A workflow must be provided.")
+    if agent is None:
+        raise ValueError("An agent must be provided.")
 
     # Inner functions capture config via closure to keep each instance isolated
-    entity = workflow
-    entity_name = getattr(entity, "name", "workflow")
+    entity = agent
+    entity_name = getattr(entity, "name", "agent")
     # entity_name labels messages; entity_id namespaces session IDs
     op_suffix = entity_name.lower().replace(" ", "_")
     entity_id = entity_name
@@ -219,7 +219,7 @@ def attach_routes(
 
         return WhatsAppWebhookResponse(status="processing")
 
-    # TODO: Criar um buffer para mensagens pós valkey_execution_lock.
+    # TODO: Create a buffer for messages after the valkey_execution_lock.
     async def process_message(message: dict):
         # Extract early so error handler can notify the user
         phone_number = message.get("from")
@@ -229,7 +229,11 @@ def attach_routes(
         # Splits identity: user_id (possibly encrypted) for DB storage, phone_number (raw) for API sends
         user_id = _encrypt_phone(phone_number, encryption_key) if enable_encryption and encryption_key else phone_number
         timestamp: str = message.get("timestamp")
-        try:   
+        # Assigned inside the try, but read by the finally: any failure before
+        # the lock is taken (typing indicator, extraction, unsupported type)
+        # must not turn into UnboundLocalError and escape the background task.
+        valkey_execution_lock = None
+        try:
             message_id = message.get("id")
             await typing_indicator_async(message_id, config)
 
@@ -341,7 +345,7 @@ def attach_routes(
                 final_text = notice + final_text
 
             if send_user_number_to_context:
-                # ponytail: semente workflow has no dependencies concept; ignored for now.
+                # ponytail: semente agent has no dependencies concept; ignored for now.
                 pass
 
             # Refresh typing indicator every 20s while the agent runs
@@ -356,18 +360,20 @@ def attach_routes(
 
             typing_task = asyncio.create_task(_keep_typing())
             try:
-                log_warning(f"Running workflow! Kwargs:\n{run_kwargs}")
+                log_warning(f"Running agent! Kwargs:\n{run_kwargs}")
                 response = await asyncio.to_thread(entity.run, input=final_text, **run_kwargs)
             finally:
                 typing_task.cancel()
 
+            # Engines may echo run-input media back in the response; only send
+            # media the agent actually generated (TTS, agent images, ...)
             for attr, media_type in (
                 ("images", "image"),
                 ("videos", "video"),
                 ("files", "document"),
                 ("audio", "audio"),
             ):
-                items = getattr(response, attr, None)
+                items = filter_generated_media(response, run_kwargs).get(attr)
                 if items:
                     await upload_and_send_media_async(items, media_type, phone_number, config)
 
@@ -375,13 +381,13 @@ def attach_routes(
                 await send_whatsapp_message_async(phone_number, response.content, config)
 
         except Exception as e:
-            log_error(f"Error processing message: {e}")
+            log_error(f"Error processing message: {e}", exc_info=True)
             try:
                 await send_whatsapp_message_async(phone_number, _ERROR_MESSAGE, config)
             except Exception as send_error:
-                log_error(f"Error sending error message: {send_error}")
+                log_error(f"Error sending error message: {send_error}", exc_info=True)
         finally:
-            if valkey_execution_lock.locked():
+            if valkey_execution_lock is not None and valkey_execution_lock.locked():
                 with suppress(Exception):
                     valkey_execution_lock.release()
 
